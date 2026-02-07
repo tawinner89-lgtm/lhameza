@@ -22,12 +22,13 @@ class NikeAdapter extends BaseAdapter {
             timeout: 90000
         });
 
-        // Nike sale pages - Morocco redirects to global, so use fr or global
+        // Nike FR sold page — 1900+ products on sale!
         this.saleUrls = [
-            'https://www.nike.com/fr/w/hommes-promotions-13jrmznik1',
-            'https://www.nike.com/fr/w/femmes-promotions-13jrmz5e1x6',
-            'https://www.nike.com/fr/w/enfants-promotions-13jrmzv4dh'
+            'https://www.nike.com/fr/w?q=sold&vst=sold'
         ];
+        
+        // EUR to MAD conversion rate
+        this.eurToMad = 10.8;
     }
 
     async initBrowser() {
@@ -135,19 +136,41 @@ class NikeAdapter extends BaseAdapter {
                     }
                 }
 
-                // IMAGE
+                // IMAGE - Try multiple sources
                 const imgSelectors = [
                     '[data-testid="HeroImg"] img',
                     '.css-1fxh5tw img',
                     '[data-testid="Image-Container"] img',
                     'picture img',
-                    'img[src*="nike.com"]'
+                    'img[src*="static.nike.com"]',
+                    'img[src*="nike.com"]',
+                    '.product-gallery img',
+                    '[class*="ProductImage"] img'
                 ];
                 for (const sel of imgSelectors) {
                     const el = document.querySelector(sel);
-                    if (el && el.src && !el.src.includes('data:')) {
-                        image = el.src;
-                        break;
+                    if (el) {
+                        // Try src, data-src, srcset
+                        let imgUrl = el.src || el.getAttribute('data-src');
+                        if (!imgUrl || imgUrl.includes('data:')) {
+                            const srcset = el.getAttribute('srcset');
+                            if (srcset) {
+                                imgUrl = srcset.split(',')[0]?.trim().split(' ')[0];
+                            }
+                        }
+                        
+                        if (imgUrl && !imgUrl.includes('data:')) {
+                            // Ensure https and clean URL
+                            if (imgUrl.startsWith('//')) {
+                                imgUrl = 'https:' + imgUrl;
+                            }
+                            // Use high-res version
+                            if (imgUrl.includes('t_PDP_')) {
+                                imgUrl = imgUrl.replace(/t_PDP_[^/]+/, 't_PDP_1728_v1');
+                            }
+                            image = imgUrl;
+                            break;
+                        }
                     }
                 }
 
@@ -468,9 +491,25 @@ class NikeAdapter extends BaseAdapter {
                                 }
                             }
                             
-                            // Image
+                            // Image - get highest quality
+                            let image = null;
                             const imgEl = card.querySelector('img[src*="nike"], img');
-                            const image = imgEl?.src || imgEl?.getAttribute('data-src');
+                            if (imgEl) {
+                                // Try to get src first, then data-src
+                                image = imgEl.src || imgEl.getAttribute('data-src') || imgEl.getAttribute('srcset')?.split(' ')[0];
+                                
+                                // Clean up the image URL - prefer high-res versions
+                                if (image && image.includes('nike.com')) {
+                                    // Remove query params and use t_PDP_1728 for better quality
+                                    if (image.includes('t_PDP_')) {
+                                        image = image.replace(/t_PDP_[^/]+/, 't_PDP_1728_v1');
+                                    }
+                                    // Ensure https
+                                    if (image.startsWith('//')) {
+                                        image = 'https:' + image;
+                                    }
+                                }
+                            }
                             
                             // Link
                             const linkEl = card.querySelector('a[href*="/t/"]');

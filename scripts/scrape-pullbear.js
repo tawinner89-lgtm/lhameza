@@ -241,7 +241,6 @@ function formatDeal(item) {
     return {
         external_id: `pullbear-${Buffer.from(item.name + item.url).toString('base64').substring(0, 20)}`,
         brand: 'Pull&Bear',
-        name: item.name,
         title: item.name,
         price: item.currentPrice,
         original_price: item.originalPrice || null,
@@ -342,7 +341,7 @@ async function main() {
     if (dealsWithDiscount.length > 0) {
         console.log('\n📋 Sample deals:');
         dealsWithDiscount.slice(0, 5).forEach((d, i) => {
-            console.log(`   ${i + 1}. ${d.name?.slice(0, 40)}...`);
+            console.log(`   ${i + 1}. ${d.title?.slice(0, 40)}...`);
             console.log(`      ${d.price} MAD (was ${d.original_price || '?'}) - ${d.discount}% off`);
         });
 
@@ -350,7 +349,7 @@ async function main() {
     } else if (allDeals.length > 0) {
         console.log('\n⚠️ No deals with minimum discount, but found products:');
         allDeals.slice(0, 5).forEach((d, i) => {
-            console.log(`   ${i + 1}. ${d.name?.slice(0, 40)}... : ${d.price} MAD`);
+            console.log(`   ${i + 1}. ${d.title?.slice(0, 40)}... : ${d.price} MAD`);
         });
     } else {
         console.log('\n⚠️ No products found!');

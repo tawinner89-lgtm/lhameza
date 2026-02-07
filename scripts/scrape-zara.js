@@ -215,7 +215,6 @@ function formatDeal(item, url) {
     return {
         external_id: `zara-${Buffer.from(name + url).toString('base64').substring(0, 20)}`,
         brand: 'Zara',
-        name: name,
         title: name,
         price: item.currentPrice,
         original_price: item.originalPrice || null,
