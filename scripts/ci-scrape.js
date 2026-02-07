@@ -11,6 +11,35 @@
 
 require('dotenv').config();
 const scraperService = require('../src/services/scraper.service');
+const https = require('https');
+
+// ===========================
+// TELEGRAM NOTIFICATION
+// ===========================
+async function sendTelegram(message) {
+    const token = process.env.TELEGRAM_BOT_TOKEN;
+    const chatId = process.env.TELEGRAM_CHAT_ID;
+    if (!token || !chatId) return;
+
+    const url = `https://api.telegram.org/bot${token}/sendMessage`;
+    const body = JSON.stringify({
+        chat_id: chatId,
+        text: message,
+        parse_mode: 'HTML',
+        disable_web_page_preview: true,
+    });
+
+    return new Promise((resolve) => {
+        const req = https.request(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } }, (res) => {
+            let data = '';
+            res.on('data', (chunk) => data += chunk);
+            res.on('end', () => resolve(data));
+        });
+        req.on('error', () => resolve(null));
+        req.write(body);
+        req.end();
+    });
+}
 
 // Parse CLI args
 const args = process.argv.slice(2);
@@ -217,6 +246,45 @@ async function main() {
     if (failures.length > 0) {
         console.log('\n⚠️  Failed adapters:');
         failures.forEach(f => console.log(`   - ${f.name}: ${f.error}`));
+    }
+
+    // ===========================
+    // TELEGRAM REPORT
+    // ===========================
+    const env = process.env.CI ? '🤖 GitHub Actions' : '💻 Local';
+    const statusEmoji = failed === 0 ? '✅' : failed < allResults.length / 2 ? '⚠️' : '❌';
+    
+    const topAdapters = allResults
+        .filter(r => r.success && r.itemsAdded > 0)
+        .sort((a, b) => (b.itemsAdded || 0) - (a.itemsAdded || 0))
+        .slice(0, 5)
+        .map(r => `  • ${r.name}: +${r.itemsAdded} جديد`)
+        .join('\n');
+
+    const failedList = failures.length > 0
+        ? '\n\n❌ <b>فشلو:</b>\n' + failures.slice(0, 5).map(f => `  • ${f.name}`).join('\n')
+        : '';
+
+    const telegramMsg = `${statusEmoji} <b>L'HAMZA Scraper Report</b>
+
+📊 <b>النتائج:</b>
+  ✅ نجحو: ${successful}/${allResults.length} adapters
+  📦 لقينا: ${totalFound} deals
+  ✨ جداد: ${totalAdded} deals
+  🔄 محدّثين: ${totalUpdated} deals
+  ⏱ المدة: ${totalDuration} دقيقة
+
+🏆 <b>أحسن Adapters:</b>
+${topAdapters || '  (لا جديد)'}${failedList}
+
+🌐 ${env}
+🔗 <a href="https://lhamza.vercel.app">lhamza.vercel.app</a>`;
+
+    try {
+        await sendTelegram(telegramMsg);
+        console.log('\n📱 Telegram report sent!');
+    } catch (e) {
+        console.log('\n⚠️  Telegram report failed:', e.message);
     }
 
     // Exit with success even if some adapters fail (partial success is OK)
