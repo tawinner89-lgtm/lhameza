@@ -9,8 +9,9 @@ import DealsGrid from '@/components/DealsGrid';
 import LiveActivity from '@/components/LiveActivity';
 import MobileBottomNav from '@/components/MobileBottomNav';
 import { ChevronDown, Flame, Zap } from 'lucide-react';
-import { 
-  getDeals, 
+import {
+  getDeals,
+  getDealsByIds,
   getSuperHamzaDeals,
   getStats,
   trackCategorySelected,
@@ -18,7 +19,7 @@ import {
 } from '@/lib/supabase';
 import type { Deal } from '@/lib/api';
 import { useLocale } from '@/lib/i18n/useLocale';
-import { bumpPreference, getPreferredSources } from '@/lib/retention';
+import { bumpPreference, getPreferredSources, getSavedIds } from '@/lib/retention';
 
 const ITEMS_PER_PAGE = 48; // Divisible by 2,3,4 columns for clean grid
 
@@ -89,9 +90,32 @@ export default function Home() {
       setIsSearchActive(false);
     }
 
+    // Handle saved/favorites tab separately (reads from localStorage, no pagination)
+    if (category === 'saved' && !isLoadMore) {
+      setLoading(true);
+      setError(null);
+      setIsSearchActive(false);
+      try {
+        const ids = getSavedIds();
+        const savedRes = await getDealsByIds(ids);
+        const savedDeals = savedRes.deals as Deal[];
+        setDeals(savedDeals);
+        setFilteredDeals(savedDeals);
+        setTotalCount(savedDeals.length);
+        setOffset(savedDeals.length);
+        setHasMore(false);
+      } catch (err: unknown) {
+        console.error('Error fetching saved deals:', err);
+        setError(locale === 'ar' ? 'ما قدرناش نجيبو العروض دابا.' : 'Impossible de charger les deals.');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     try {
       let response;
-      
+
       if (category === 'all') {
         response = await getDeals({ limit: ITEMS_PER_PAGE, offset: currentOffset });
       } else if (category === 'super-hamza') {
@@ -266,6 +290,12 @@ export default function Home() {
               {selectedCategory === 'fashion' && (locale === 'ar' ? 'موضة' : 'MODE')}
               {selectedCategory === 'home' && (locale === 'ar' ? 'منزل' : 'MAISON')}
               {selectedCategory === 'beauty' && (locale === 'ar' ? 'جمال' : 'BEAUTÉ')}
+              {selectedCategory === 'saved' && (
+                <>
+                  <span>❤️</span>
+                  {locale === 'ar' ? 'المفضلة' : 'FAVORIS'}
+                </>
+              )}
             </h2>
             <p className={`mt-1 text-xs sm:text-sm ${selectedCategory === 'super-hamza' ? 'text-amber-600 font-medium' : 'text-gray-500'}`}>
               {filteredDeals.length}{totalCount > filteredDeals.length ? ` / ${totalCount}` : ''} {locale === 'ar' ? 'عرض' : 'offres'}
@@ -274,8 +304,21 @@ export default function Home() {
           </div>
         )}
 
+        {/* Saved empty state */}
+        {selectedCategory === 'saved' && !loading && !error && filteredDeals.length === 0 && (
+          <div className="py-20 text-center">
+            <div className="text-5xl mb-4">❤️</div>
+            <p className="text-gray-500 text-base font-medium">
+              {locale === 'ar' ? 'ما كاين حتى عرض محفوظ' : 'Aucun favori sauvegardé'}
+            </p>
+            <p className="text-gray-400 text-sm mt-2">
+              {locale === 'ar' ? 'دوز على العروض وحفظ اللي عجبك' : 'Parcourez les deals et sauvegardez vos préférés'}
+            </p>
+          </div>
+        )}
+
         {/* Deals Grid */}
-        <DealsGrid 
+        <DealsGrid
           deals={filteredDeals}
           loading={loading}
           error={error}
@@ -283,7 +326,7 @@ export default function Home() {
         />
 
         {/* Load More Button */}
-        {!loading && !error && filteredDeals.length > 0 && hasMore && !isSearchActive && (
+        {!loading && !error && filteredDeals.length > 0 && hasMore && !isSearchActive && selectedCategory !== 'saved' && (
           <motion.div
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}

@@ -19,6 +19,11 @@ const arabic = Noto_Sans_Arabic({
 });
 
 export const metadata: Metadata = {
+  verification: {
+    other: {
+      "verify-admitad": "03779ee843",
+    },
+  },
   title: "L'HAMZA - الهـمزة f'Sel3a 🇲🇦",
   description: "Aji tchouf a7san deals w soldes f Maroc. iPhone, Zara, Nike, Beauty... kolchi rkhis!",
   keywords: ["deals", "maroc", "morocco", "avito", "zara", "nike", "promotion", "soldes", "hemza", "همزة"],
