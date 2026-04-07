@@ -1,6 +1,16 @@
 # Dependencies
 node_modules/
 
+# Build output
+.next/
+
+# TikTok generated content (never commit)
+tiktok-browser-data/
+tiktok-content/
+tiktok-images/
+tiktok-videos/
+tiktok-pro/
+
 # Environment files
 .env
 .env.local
@@ -28,6 +38,6 @@ yarn-error.log*
 # Test coverage
 coverage/
 
-# Build output
+# Build artifacts
 dist/
 build/
