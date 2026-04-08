@@ -67,6 +67,12 @@ jobs:
             node scripts/ci-scrape.js --adapters "$ADAPTERS"
           fi
 
+      - name: Cleanup no-discount deals
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: node scripts/cleanup-no-discount.js || true
+
       - name: Summary
         if: always()
         run: echo "Scraping completed at $(date -u '+%Y-%m-%d %H:%M UTC')"

@@ -55,7 +55,7 @@ const getArg = (name) => {
 // Group 1: Reliable adapters (simple HTTP/DOM scraping, unlikely to be blocked)
 const RELIABLE = [
     'jumia_tech',
-    'jumia_fashion', 
+    'jumia_fashion',
     'jumia_home',
     'jumia_beauty',
     'jumia_brands',
@@ -69,6 +69,7 @@ const RELIABLE = [
     'hmall',
     'cosmetique',
     'yvesrocher',
+    'aliexpress',
 ];
 
 // Group 2: Fashion brands (Playwright-heavy, may hit rate limits)
@@ -88,7 +89,7 @@ const INTERNATIONAL = [
 
 // Category mapping
 const CATEGORY_ADAPTERS = {
-    tech: ['jumia_tech', 'electroplanet', 'ultrapc'],
+    tech: ['jumia_tech', 'electroplanet', 'ultrapc', 'aliexpress'],
     fashion: ['jumia_fashion', 'jumia_brands', 'zara', 'bershka', 'pullbear', 'lcwaikiki', 'nike', 'adidas'],
     home: ['jumia_home', 'marjane', 'kitea', 'bim'],
     beauty: ['jumia_beauty', 'hmizate_beauty', 'hmall', 'cosmetique', 'yvesrocher'],

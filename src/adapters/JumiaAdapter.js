@@ -179,8 +179,23 @@ class JumiaAdapter extends BaseAdapter {
                             }
                         }
                         
-                        const link = card.tagName === 'A' ? card.href : card.querySelector('a')?.href;
-                        
+                        // Prefer a.core (Jumia's product card anchor) over first generic anchor
+                        // to avoid capturing category/brand/sponsored links
+                        let link;
+                        if (card.tagName === 'A') {
+                            link = card.href;
+                        } else {
+                            const coreAnchor = card.querySelector('a.core');
+                            link = coreAnchor
+                                ? coreAnchor.href
+                                : card.querySelector('a[href$=".html"]')?.href;
+                        }
+
+                        // Skip cards where link is not an individual product page
+                        // Jumia product URLs always end in -<digits>.html
+                        // Category/search/collection pages don't match this pattern
+                        if (!link || !link.match(/\/[^/]+-\d+\.html/)) return;
+
                         if (name && name.length > 3) {
                             products.push({
                                 name,

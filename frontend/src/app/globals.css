@@ -38,6 +38,7 @@
   --brand-bershka: #2d2d2d;
   --brand-pullbear: #3d5a80;
   --brand-kitea: #06D6A0;
+  --brand-aliexpress: #FF4747;
   --brand-decathlon: #0082C3;
   
   /* Typography */
@@ -575,7 +576,8 @@ img {
 .brand-glow-jumia:hover   { box-shadow: 0 8px 30px rgba(246, 139, 30, 0.25); }
 .brand-glow-bershka:hover { box-shadow: 0 8px 30px rgba(45, 45, 45, 0.2); }
 .brand-glow-pullbear:hover { box-shadow: 0 8px 30px rgba(61, 90, 128, 0.25); }
-.brand-glow-kitea:hover   { box-shadow: 0 8px 30px rgba(6, 214, 160, 0.25); }
+.brand-glow-kitea:hover        { box-shadow: 0 8px 30px rgba(6, 214, 160, 0.25); }
+.brand-glow-aliexpress:hover   { box-shadow: 0 8px 30px rgba(255, 71, 71, 0.25); }
 
 /* Brand stripe (left border on card) */
 .brand-stripe::before {
@@ -599,7 +601,8 @@ img {
 .brand-stripe-jumia::before   { background: linear-gradient(to bottom, #F68B1E, #E85D04); }
 .brand-stripe-bershka::before { background: linear-gradient(to bottom, #2d2d2d, #555); }
 .brand-stripe-pullbear::before { background: linear-gradient(to bottom, #3d5a80, #5e81ac); }
-.brand-stripe-kitea::before   { background: linear-gradient(to bottom, #06D6A0, #048A81); }
+.brand-stripe-kitea::before        { background: linear-gradient(to bottom, #06D6A0, #048A81); }
+.brand-stripe-aliexpress::before   { background: linear-gradient(to bottom, #FF4747, #CC0000); }
 
 /* Brand CTA button colors */
 .brand-cta-nike    { background: linear-gradient(135deg, #FF6B35, #F7931E) !important; }
@@ -608,7 +611,8 @@ img {
 .brand-cta-jumia   { background: linear-gradient(135deg, #F68B1E, #E85D04) !important; }
 .brand-cta-bershka { background: linear-gradient(135deg, #2d2d2d, #444) !important; }
 .brand-cta-pullbear { background: linear-gradient(135deg, #3d5a80, #5e81ac) !important; }
-.brand-cta-kitea   { background: linear-gradient(135deg, #06D6A0, #048A81) !important; }
+.brand-cta-kitea        { background: linear-gradient(135deg, #06D6A0, #048A81) !important; }
+.brand-cta-aliexpress   { background: linear-gradient(135deg, #FF4747, #CC0000) !important; }
 
 /* Brand discount badge */
 .brand-badge-nike    { background: #FF6B35; }

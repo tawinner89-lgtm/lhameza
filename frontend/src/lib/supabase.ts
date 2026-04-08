@@ -194,7 +194,8 @@ export async function searchDeals(searchQuery: string, params?: { limit?: number
     .from('deals')
     .select('*', { count: 'exact' })
     .or(`title.ilike.%${terms}%,brand.ilike.%${terms}%,source.ilike.%${terms}%`)
-    .order('created_at', { ascending: false })
+    .gte('discount', 10)
+    .order('discount', { ascending: false })
     .limit(limit);
 
   if (error) {

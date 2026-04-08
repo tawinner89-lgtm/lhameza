@@ -28,6 +28,9 @@ const YvesRocherAdapter = require('./YvesRocherAdapter');
 const HmallAdapter = require('./HmallAdapter');
 const CosmetiqueAdapter = require('./CosmetiqueAdapter');
 
+// International Marketplaces
+const AliExpressAdapter = require('./AliExpressAdapter');
+
 // Fashion Brands (Scroll-based scraping)
 const ZaraAdapter = require('./ZaraAdapter');
 const AdidasAdapter = require('./AdidasAdapter');
@@ -243,6 +246,15 @@ const ADAPTERS_CONFIG = {
         country: 'MA',
         emoji: '👕',
         priority: 1
+    },
+
+    // AliExpress — trending/discounted products, USD→MAD converted
+    aliexpress: {
+        Adapter: AliExpressAdapter,
+        category: 'tech',
+        country: 'MA',
+        emoji: '🛒',
+        priority: 2
     }
 };
 
@@ -320,6 +332,9 @@ module.exports = {
     HmallAdapter,
     CosmetiqueAdapter,
     
+    // International Marketplaces
+    AliExpressAdapter,
+
     // Fashion Brands
     ZaraAdapter,
     AdidasAdapter,

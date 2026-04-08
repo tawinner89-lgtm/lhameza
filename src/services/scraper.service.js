@@ -96,10 +96,19 @@ class ScraperService {
             let updated = 0;
             
             if (result.success && result.items?.length > 0) {
+                // Filter: only save deals with a real discount (>= 10%)
+                const validItems = result.items.filter(
+                    item => item.discount != null && item.discount >= 10
+                );
+                const skipped = result.items.length - validItems.length;
+                if (skipped > 0) {
+                    logger.info(`🚫 Skipped ${skipped} items with no/low discount (<10%)`);
+                }
+
                 // Save to Supabase in batches
                 const batchSize = 5;
-                for (let i = 0; i < result.items.length; i += batchSize) {
-                    const batch = result.items.slice(i, i + batchSize);
+                for (let i = 0; i < validItems.length; i += batchSize) {
+                    const batch = validItems.slice(i, i + batchSize);
                     const results = await Promise.all(
                         batch.map(item => supabaseService.addDeal(item))
                     );

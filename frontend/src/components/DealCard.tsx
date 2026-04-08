@@ -21,6 +21,7 @@ const sourceConfig: Record<string, { name: string; logo?: string }> = {
   pullbear: { name: "PULL&BEAR" },
   jumia: { name: 'JUMIA' },
   kitea: { name: 'KITEA' },
+  aliexpress: { name: 'ALIEXPRESS' },
 };
 
 // Fix image URL issues
@@ -121,6 +122,11 @@ export default function DealCard({ deal }: DealCardProps) {
     void trackDealSaved({ id: deal.id, saved: res.saved, source: deal.source, category: deal.category });
   };
 
+  // For AliExpress: route clicks through Admitad affiliate redirect
+  const dealUrl = deal.source === 'aliexpress'
+    ? `/api/redirect?url=${encodeURIComponent(deal.url)}`
+    : deal.url;
+
   // Calculate savings
   const savings = deal.originalPrice && deal.price && isPriceValid
     ? Math.round(deal.originalPrice - deal.price)
@@ -135,8 +141,8 @@ export default function DealCard({ deal }: DealCardProps) {
   return (
     <article className={`group relative bg-white overflow-hidden card-premium rounded-lg ${stripeClass} ${glowClass} ${deal.isSuperHamza ? 'super-glow' : ''}`}>
       {/* Image Section */}
-      <a 
-        href={deal.url}
+      <a
+        href={dealUrl}
         target="_blank"
         rel="noopener noreferrer"
         onClick={handleClick}
@@ -157,7 +163,8 @@ export default function DealCard({ deal }: DealCardProps) {
                source.name === 'BERSHKA' ? '👕' :
                source.name === 'PULL&BEAR' ? '🧥' :
                source.name === 'JUMIA' ? '📦' :
-               source.name === 'KITEA' ? '🏠' : '🛍️'}
+               source.name === 'KITEA' ? '🏠' :
+               source.name === 'ALIEXPRESS' ? '🛒' : '🛍️'}
             </span>
             <span className="text-xs text-gray-400 font-bold">{source.name}</span>
           </div>
@@ -256,7 +263,7 @@ export default function DealCard({ deal }: DealCardProps) {
 
         {/* CTA Button - Brand colored */}
         <a
-          href={deal.url}
+          href={dealUrl}
           target="_blank"
           rel="noopener noreferrer"
           onClick={handleClick}
