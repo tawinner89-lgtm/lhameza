@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/dell/Desktop/centre data/**)",
+      "Bash(node scripts/auto-post-deals.js)"
+    ]
+  }
+}

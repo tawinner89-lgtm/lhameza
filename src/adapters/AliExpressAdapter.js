@@ -1,15 +1,20 @@
 /**
- * L'HAMZA F SEL'A - AliExpress Adapter 🛒
- * Scrapes trending/discounted products from AliExpress for Morocco
- * Converts USD → MAD automatically
+ * L'HAMZA F SEL'A - AliExpress Adapter
+ * Uses Admitad API → AliExpress Affiliate API → curated JSON fallback
+ * No Playwright, pure HTTP via axios
  */
 
+const axios = require('axios');
+const path = require('path');
+const fs = require('fs');
 const BaseAdapter = require('./BaseAdapter');
 const logger = require('../utils/logger');
 
-// Approximate USD → MAD exchange rate
-// Update periodically if you want more accuracy
 const USD_TO_MAD = 10.0;
+
+// Admitad OAuth token cache (in-memory, per process lifetime)
+let _admitadToken = null;
+let _admitadTokenExpiry = 0;
 
 class AliExpressAdapter extends BaseAdapter {
     constructor() {
@@ -22,228 +27,224 @@ class AliExpressAdapter extends BaseAdapter {
             emoji: '🛒',
             minDiscount: 10,
             maxItems: 40,
-            timeout: 90000,
-            minDelay: 2000,
-            maxDelay: 5000
+            timeout: 30000,
         });
 
-        // Category pages to scrape for Morocco-relevant deals
-        this.searchUrls = [
-            { url: 'https://www.aliexpress.com/category/708/smartphones.html?SortType=default_desc&isFreeShip=y', category: 'tech' },
-            { url: 'https://www.aliexpress.com/wholesale?catId=708&SearchText=earphones+wireless&SortType=default_desc&isFreeShip=y', category: 'tech' },
-            { url: 'https://www.aliexpress.com/wholesale?catId=708&SearchText=smartwatch&SortType=default_desc&isFreeShip=y', category: 'tech' },
-            { url: 'https://www.aliexpress.com/wholesale?catId=708&SearchText=power+bank&SortType=default_desc&isFreeShip=y', category: 'tech' },
-            { url: 'https://www.aliexpress.com/wholesale?catId=708&SearchText=phone+case&SortType=default_desc&isFreeShip=y', category: 'tech' },
-            { url: 'https://www.aliexpress.com/wholesale?catId=200000783&SearchText=bag+fashion&SortType=default_desc&isFreeShip=y', category: 'fashion' },
-            { url: 'https://www.aliexpress.com/wholesale?catId=200000783&SearchText=watch+fashion&SortType=default_desc&isFreeShip=y', category: 'fashion' },
+        this.admitadClientId = process.env.ADMITAD_CLIENT_ID || '';
+        this.admitadClientSecret = process.env.ADMITAD_CLIENT_SECRET || '';
+        this.admitadCampaignId = process.env.ADMITAD_ALIEXPRESS_CAMPAIGN_ID || '';
+
+        // AliExpress Affiliate API (direct)
+        this.aliAppKey = process.env.ALIEXPRESS_APP_KEY || '';
+        this.aliAppSecret = process.env.ALIEXPRESS_APP_SECRET || '';
+        this.aliTrackingId = process.env.ALIEXPRESS_TRACKING_ID || '';
+
+        this.searchKeywords = [
+            'smartphones',
+            'wireless earphones',
+            'smartwatch',
+            'power bank',
+            'fashion accessories',
         ];
     }
 
-    /**
-     * Scrape a single AliExpress page for discounted products
-     */
-    async _scrapePage(targetUrl, category) {
-        let page;
-        try {
-            await this.initBrowser();
-            page = await this.context.newPage();
+    // ─── Admitad OAuth2 ───────────────────────────────────────────────────────
 
-            logger.info(`${this.name}: Scraping ${targetUrl}`);
+    async _getAdmitadToken() {
+        if (_admitadToken && Date.now() < _admitadTokenExpiry) return _admitadToken;
 
-            await page.goto(targetUrl, {
-                waitUntil: 'domcontentloaded',
-                timeout: this.timeout
-            });
+        const resp = await axios.post(
+            'https://api.admitad.com/token/',
+            new URLSearchParams({
+                grant_type: 'client_credentials',
+                client_id: this.admitadClientId,
+                client_secret: this.admitadClientSecret,
+                scope: 'advcampaigns products',
+            }),
+            { timeout: this.timeout }
+        );
 
-            await this.handleCookieConsent(page);
-            await this.randomDelay(3000, 5000);
-
-            // Scroll to trigger lazy loading
-            await this.scrollPage(page, 8);
-            await page.evaluate(() => window.scrollTo(0, 0));
-            await this.randomDelay(1500, 2500);
-
-            const rawItems = await page.evaluate((usdToMad) => {
-                const products = [];
-
-                // AliExpress uses dynamic/hashed CSS class names — target stable attributes
-                // and fall back through multiple selectors
-                const cardSelectors = [
-                    'a[href*="/item/"]',                          // product links directly
-                    '[class*="SearchCard"]',
-                    '[class*="card--contentWrapper"]',
-                    '.search-item-card-wrapper-gallery',
-                    '.list--gallery--C2f2tvm > div',
-                    '[class*="product-card"]'
-                ];
-
-                let cards = [];
-                for (const sel of cardSelectors) {
-                    const found = document.querySelectorAll(sel);
-                    if (found.length > 3) {
-                        cards = Array.from(found);
-                        break;
-                    }
-                }
-
-                cards.forEach(card => {
-                    try {
-                        const getText = (selectors) => {
-                            for (const sel of selectors) {
-                                const el = card.querySelector(sel);
-                                if (el?.textContent?.trim()) return el.textContent.trim();
-                            }
-                            return '';
-                        };
-
-                        const name = getText([
-                            '[class*="titleText"]',
-                            '[class*="title--wrap"]',
-                            '[class*="productTitle"]',
-                            '[class*="item-title"]',
-                            'h1', 'h2', 'h3',
-                            '[class*="Title"]'
-                        ]);
-
-                        const priceText = getText([
-                            '[class*="price--current"]',
-                            '[class*="sale--price"]',
-                            '[class*="price-sale"]',
-                            '[class*="salePrice"]',
-                            '[class*="Price"] span',
-                        ]);
-
-                        const origPriceText = getText([
-                            '[class*="price--original"]',
-                            '[class*="price-origin"]',
-                            '[class*="originalPrice"]',
-                            '[class*="oldPrice"]',
-                            'del', 's'
-                        ]);
-
-                        const discountText = getText([
-                            '[class*="discount"]',
-                            '[class*="Discount"]',
-                            '[class*="off"]',
-                            '[class*="percentage"]',
-                            '[class*="coupon"]'
-                        ]);
-
-                        // Image: prefer data-src (lazy load)
-                        const imgEl = card.querySelector('img');
-                        let image = '';
-                        if (imgEl) {
-                            image = imgEl.getAttribute('data-src') || imgEl.getAttribute('src') || '';
-                            if (image.startsWith('//')) image = 'https:' + image;
-                            // Skip non-product images (gifs, icons, placeholders)
-                            if (!image.includes('alicdn.com') || image.endsWith('.gif')) image = '';
-                        }
-
-                        // Product link — must be a direct /item/ URL
-                        let link = null;
-                        const linkEl = card.tagName === 'A' && card.href.includes('/item/')
-                            ? card
-                            : card.querySelector('a[href*="/item/"]');
-                        if (linkEl) {
-                            link = linkEl.href;
-                            // Strip tracking params that inflate URL length, keep it clean
-                            try {
-                                const u = new URL(link);
-                                // Keep only the essential path; strip platform/session params
-                                link = `${u.origin}${u.pathname}`;
-                            } catch (_) { /* keep as-is */ }
-                        }
-
-                        // Skip if not a product page URL
-                        if (!link || !link.match(/\/item\/\d+\.html/)) return;
-
-                        // Parse USD price and convert to MAD
-                        const parseUSD = (str) => {
-                            if (!str) return null;
-                            // Handle ranges like "$2.99 - $4.99" — take the lower price
-                            const match = str.replace(/,/g, '').match(/[\d.]+/);
-                            return match ? parseFloat(match[0]) : null;
-                        };
-
-                        const priceUSD = parseUSD(priceText);
-                        const origUSD = parseUSD(origPriceText);
-
-                        if (!priceUSD) return;
-
-                        const priceMAD = Math.round(priceUSD * usdToMad);
-                        const origMAD = origUSD ? Math.round(origUSD * usdToMad) : null;
-
-                        if (name && name.length > 3) {
-                            products.push({
-                                name: name.slice(0, 150), // trim overly long titles
-                                currentPrice: String(priceMAD),
-                                originalPrice: origMAD ? String(origMAD) : '',
-                                discountBadge: discountText,
-                                image,
-                                link,
-                            });
-                        }
-                    } catch (_) { /* skip malformed cards */ }
-                });
-
-                return products;
-            }, USD_TO_MAD);
-
-            if (page) await page.close();
-            await this.closeBrowser();
-
-            const items = rawItems
-                .slice(0, this.maxItems)
-                .map(item => this.formatDeal({
-                    ...item,
-                    brand: 'AliExpress',
-                    category,
-                    source: 'aliexpress'
-                }))
-                .filter(item => item && item.name && item.price);
-
-            logger.info(`${this.name} [${category}]: Found ${items.length} valid items`);
-            return items;
-
-        } catch (error) {
-            logger.error(`${this.name}: Page scrape failed`, { url: targetUrl, error: error.message });
-            if (page) { try { await page.close(); } catch (_) {} }
-            await this.closeBrowser();
-            return [];
-        }
+        _admitadToken = resp.data.access_token;
+        // expire 60 s before actual expiry
+        _admitadTokenExpiry = Date.now() + (resp.data.expires_in - 60) * 1000;
+        return _admitadToken;
     }
 
-    /**
-     * scrape() — called by BaseAdapter.scrapeWithRetry()
-     * Iterates all category URLs and returns aggregated results.
-     */
-    async scrape(url = null) {
-        if (url) {
-            // Single URL mode (for direct invocation / retry)
-            const items = await this._scrapePage(url, this.category);
-            return { success: true, store: this.name, source: 'aliexpress', itemCount: items.length, items };
+    // ─── Strategy 1: Admitad Product Feed API ────────────────────────────────
+
+    async _fetchViaAdmitad() {
+        if (!this.admitadClientId || !this.admitadClientSecret || !this.admitadCampaignId) {
+            throw new Error('Admitad credentials not configured');
         }
 
-        // Multi-URL mode: scrape all categories
-        const allItems = [];
-        for (let i = 0; i < this.searchUrls.length; i++) {
-            const { url: targetUrl, category } = this.searchUrls[i];
-            const items = await this._scrapePage(targetUrl, category);
-            allItems.push(...items);
+        const token = await this._getAdmitadToken();
+        const items = [];
 
-            // Polite delay between requests (skip after last)
-            if (i < this.searchUrls.length - 1) {
-                await this.randomDelay(3000, 6000);
+        for (const keyword of this.searchKeywords) {
+            try {
+                const resp = await axios.get(
+                    `https://api.admitad.com/advcampaigns/${this.admitadCampaignId}/products/`,
+                    {
+                        params: { query: keyword, limit: 20, offset: 0 },
+                        headers: { Authorization: `Bearer ${token}` },
+                        timeout: this.timeout,
+                    }
+                );
+
+                const results = resp.data?.results || resp.data?.products || [];
+                for (const p of results) {
+                    const priceUSD = parseFloat(p.price || p.sale_price || 0);
+                    const origUSD = parseFloat(p.old_price || p.original_price || 0);
+                    if (!priceUSD) continue;
+
+                    items.push(this.formatDeal({
+                        name: p.name || p.title,
+                        currentPrice: String(Math.round(priceUSD * USD_TO_MAD)),
+                        originalPrice: origUSD > priceUSD
+                            ? String(Math.round(origUSD * USD_TO_MAD))
+                            : '',
+                        image: p.picture || p.image || p.picture_url || '',
+                        link: p.goto_link || p.url || p.product_url || '',
+                        brand: 'AliExpress',
+                        category: 'tech',
+                        source: 'aliexpress',
+                    }));
+                }
+            } catch (err) {
+                logger.warn(`${this.name}: Admitad keyword "${keyword}" failed`, { error: err.message });
             }
         }
 
-        return {
-            success: true,
-            store: this.name,
-            source: 'aliexpress',
-            itemCount: allItems.length,
-            items: allItems
+        if (!items.length) throw new Error('Admitad returned 0 products');
+        return items;
+    }
+
+    // ─── Strategy 2: AliExpress Affiliate API ────────────────────────────────
+
+    async _fetchViaAliExpressAffiliateAPI() {
+        if (!this.aliAppKey || !this.aliAppSecret) {
+            throw new Error('AliExpress Affiliate API credentials not configured');
+        }
+
+        const crypto = require('crypto');
+
+        const buildSignedRequest = (params) => {
+            const sorted = Object.keys(params).sort().map(k => `${k}${params[k]}`).join('');
+            const sign = crypto
+                .createHmac('sha256', this.aliAppSecret)
+                .update(this.aliAppSecret + sorted + this.aliAppSecret)
+                .digest('hex')
+                .toUpperCase();
+            return { ...params, sign };
         };
+
+        const items = [];
+
+        for (const keyword of this.searchKeywords) {
+            try {
+                const params = buildSignedRequest({
+                    method: 'aliexpress.affiliate.product.query',
+                    app_key: this.aliAppKey,
+                    timestamp: new Date().toISOString().replace(/[TZ]/g, ' ').trim(),
+                    sign_method: 'hmac-sha256',
+                    format: 'json',
+                    v: '2.0',
+                    keywords: keyword,
+                    sort: 'volumeDesc',
+                    page_no: 1,
+                    page_size: 20,
+                    fields: 'productId,productTitle,salePrice,originalPrice,discount,productMainImageUrl,promotionLink',
+                    ...(this.aliTrackingId ? { tracking_id: this.aliTrackingId } : {}),
+                });
+
+                const resp = await axios.get('https://api-sg.aliexpress.com/sync', {
+                    params,
+                    timeout: this.timeout,
+                });
+
+                const products =
+                    resp.data?.aliexpress_affiliate_product_query_response?.resp_result?.result?.products?.product || [];
+
+                for (const p of products) {
+                    const priceUSD = parseFloat(p.sale_price || 0);
+                    const origUSD = parseFloat(p.original_price || 0);
+                    if (!priceUSD) continue;
+
+                    items.push(this.formatDeal({
+                        name: p.product_title,
+                        currentPrice: String(Math.round(priceUSD * USD_TO_MAD)),
+                        originalPrice: origUSD > priceUSD
+                            ? String(Math.round(origUSD * USD_TO_MAD))
+                            : '',
+                        discount: p.discount ? parseInt(p.discount) : null,
+                        image: p.product_main_image_url || '',
+                        link: p.promotion_link || '',
+                        brand: 'AliExpress',
+                        category: 'tech',
+                        source: 'aliexpress',
+                    }));
+                }
+            } catch (err) {
+                logger.warn(`${this.name}: AliExpress Affiliate API keyword "${keyword}" failed`, { error: err.message });
+            }
+        }
+
+        if (!items.length) throw new Error('AliExpress Affiliate API returned 0 products');
+        return items;
+    }
+
+    // ─── Strategy 3: Curated JSON fallback ───────────────────────────────────
+
+    _fetchFromCuratedFeed() {
+        const feedPath = path.join(__dirname, '../../data/aliexpress-deals.json');
+        if (!fs.existsSync(feedPath)) throw new Error('Curated feed not found');
+
+        const raw = JSON.parse(fs.readFileSync(feedPath, 'utf8'));
+        const items = raw
+            .map(p => this.formatDeal({
+                name: p.name,
+                currentPrice: String(p.currentPrice),
+                originalPrice: p.originalPrice ? String(p.originalPrice) : '',
+                discount: p.discount || null,
+                image: p.image || '',
+                link: p.link || '',
+                brand: 'AliExpress',
+                category: p.category || 'tech',
+                source: 'aliexpress',
+            }))
+            .filter(item => item && item.name && item.price);
+
+        logger.info(`${this.name}: Loaded ${items.length} items from curated feed`);
+        return items;
+    }
+
+    // ─── Main scrape() ────────────────────────────────────────────────────────
+
+    async scrape() {
+        // Strategy 1: Admitad
+        try {
+            logger.info(`${this.name}: Trying Admitad API`);
+            const items = await this._fetchViaAdmitad();
+            logger.info(`${this.name}: Admitad returned ${items.length} items`);
+            return { success: true, store: this.name, source: 'admitad', itemCount: items.length, items };
+        } catch (err) {
+            logger.warn(`${this.name}: Admitad failed — ${err.message}`);
+        }
+
+        // Strategy 2: AliExpress Affiliate API
+        try {
+            logger.info(`${this.name}: Trying AliExpress Affiliate API`);
+            const items = await this._fetchViaAliExpressAffiliateAPI();
+            logger.info(`${this.name}: Affiliate API returned ${items.length} items`);
+            return { success: true, store: this.name, source: 'aliexpress_api', itemCount: items.length, items };
+        } catch (err) {
+            logger.warn(`${this.name}: AliExpress Affiliate API failed — ${err.message}`);
+        }
+
+        // Strategy 3: Curated JSON fallback
+        logger.info(`${this.name}: Falling back to curated feed`);
+        const items = this._fetchFromCuratedFeed();
+        return { success: true, store: this.name, source: 'curated', itemCount: items.length, items };
     }
 }
 

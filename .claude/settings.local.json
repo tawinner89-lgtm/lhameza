@@ -14,7 +14,8 @@
       "Bash(vercel deploy:*)",
       "Bash(npm run:*)",
       "Bash(vercel build:*)",
-      "Bash(vercel pull:*)"
+      "Bash(vercel pull:*)",
+      "Bash(where node:*)"
     ]
   }
 }
