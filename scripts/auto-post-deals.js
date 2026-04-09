@@ -134,7 +134,7 @@ async function main() {
 
     const { data: deals, error } = await supabase
         .from('deals')
-        .select('id, title, name, price, original_price, discount, url, link, source, category')
+        .select('id, title, price, original_price, discount, url, source, category')
         .gte('created_at', since)
         .gte('discount', MIN_DISCOUNT)
         .order('discount', { ascending: false })
