@@ -166,54 +166,96 @@ class ZaraAdapter extends BaseAdapter {
                     }
                 }
 
-                // PRICES - Zara structure: crossed old price, discount %, current price
-                // Find all money-amount elements
-                const priceContainer = document.querySelector('.product-detail-info__price, .price-current, .price');
-                const allPrices = document.querySelectorAll('.money-amount__main');
-                
-                // Extract all price values as numbers
-                // IMPORTANT: Filter out small numbers (discount %, decimals) — real MAD prices are >= 50
-                const priceValues = [];
-                allPrices.forEach(el => {
-                    const text = el.textContent?.trim();
-                    if (text && text.match(/[\d.,]+/)) {
-                        const numValue = parseFloat(text.replace(/[^\d.,]/g, '').replace(',', '.'));
-                        // Only accept values that look like real prices (>= 50 MAD, <= 100000 MAD)
-                        if (numValue >= 50 && numValue <= 100000) {
-                            priceValues.push({ text, value: numValue });
+                // ─── PRICES ──────────────────────────────────────────────────
+                // Strategy: use semantic selectors scoped to the product price
+                // container only — NEVER querySelectorAll across the whole page
+                // (page has carousels/related products with other prices that
+                //  corrupt the "sort by value" approach).
+
+                function parseMAD(text) {
+                    if (!text) return null;
+                    const n = parseFloat(text.replace(/[^\d.,]/g, '').replace(',', '.'));
+                    // Sanity: real MAD clothing prices are 50–15000
+                    return (!isNaN(n) && n >= 50 && n <= 15000) ? n : null;
+                }
+
+                function getText(el) {
+                    return el ? el.textContent.trim() : null;
+                }
+
+                // Step 1: Find the product price container (scoped lookup)
+                const priceBox = document.querySelector([
+                    '.product-detail-info__price',
+                    '.price-current__wrapper',
+                    '[class*="product-detail-info"] [class*="price"]',
+                    '.pdp-price',
+                    '[data-qa-label="product-price"]',
+                ].join(','));
+
+                const scope = priceBox || document;  // fallback to document if not found
+
+                // Step 2: Original (crossed-out) price — look for del/s/price-old within scope
+                const oldPriceEl = scope.querySelector([
+                    'del .money-amount__main',
+                    's .money-amount__main',
+                    '.price-old .money-amount__main',
+                    '.price__item--old .money-amount__main',
+                    '[class*="price-old"] .money-amount__main',
+                    '[class*="crossed"] .money-amount__main',
+                    '[class*="line-through"] .money-amount__main',
+                    'del',
+                    's[class*="price"]',
+                ].join(','));
+
+                const origVal = parseMAD(getText(oldPriceEl));
+
+                // Step 3: Current (sale) price — look for explicitly current/sale selectors
+                const curPriceEl = scope.querySelector([
+                    '.price-current .money-amount__main',
+                    '.price__item--current .money-amount__main',
+                    '[class*="price-current"] .money-amount__main',
+                    '[class*="price-sale"] .money-amount__main',
+                    // last resort: first .money-amount__main in the price box that is NOT inside del/s
+                ].join(','));
+
+                let currVal = parseMAD(getText(curPriceEl));
+
+                // Step 4: If targeted selectors found nothing, fall back to the
+                // first .money-amount__main in the price box that is NOT inside a del/s tag
+                if (!currVal && priceBox) {
+                    const allInBox = priceBox.querySelectorAll('.money-amount__main');
+                    for (const el of allInBox) {
+                        if (!el.closest('del') && !el.closest('s')) {
+                            const v = parseMAD(getText(el));
+                            if (v) { currVal = v; break; }
                         }
                     }
-                });
-
-                // Sort by value - highest is original, lowest is current (sale price)
-                if (priceValues.length >= 2) {
-                    priceValues.sort((a, b) => b.value - a.value); // Descending
-                    originalPrice = priceValues[0].text; // Highest = original
-                    currentPrice = priceValues[priceValues.length - 1].text; // Lowest = sale price
-                } else if (priceValues.length === 1) {
-                    currentPrice = priceValues[0].text;
                 }
 
-                // Try to get discount percentage from page
-                const discountEl = document.querySelector('[class*="discount"], .price-current__discount');
-                if (discountEl) {
-                    const match = discountEl.textContent?.match(/-?(\d+)%/);
-                    if (match) discount = parseInt(match[1]);
-                }
+                // Assign results
+                if (currVal) currentPrice  = String(currVal);
+                if (origVal) originalPrice = String(origVal);
 
-                // Calculate discount if we have both prices
-                if (originalPrice && currentPrice) {
-                    const orig = parseFloat(originalPrice.replace(/[^\d.,]/g, '').replace(',', '.'));
-                    const curr = parseFloat(currentPrice.replace(/[^\d.,]/g, '').replace(',', '.'));
-                    
-                    // Only valid if original > current
-                    if (orig > curr) {
-                        discount = Math.round((1 - curr / orig) * 100);
+                // Step 5: Validate — original must be strictly greater than current
+                if (origVal && currVal) {
+                    if (origVal > currVal) {
+                        discount = Math.round((1 - currVal / origVal) * 100);
                     } else {
-                        // No real discount - this is not a sale item
+                        // Prices are equal or inverted — no real discount
                         originalPrice = null;
                         discount = null;
                     }
+                }
+
+                // Step 6: Try the on-page discount badge as a cross-check
+                const discountEl = scope.querySelector([
+                    '[class*="discount"]',
+                    '.price-current__discount',
+                    '[class*="promo-badge"]',
+                ].join(','));
+                if (discountEl && !discount) {
+                    const m = discountEl.textContent?.match(/-?(\d+)%/);
+                    if (m) discount = parseInt(m[1]);
                 }
 
                 return { currentPrice, originalPrice, discount, name, image };
