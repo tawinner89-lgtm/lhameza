@@ -114,16 +114,35 @@ class ScraperService {
                     logger.info(`🚫 Skipped ${skipped} items (no/low discount <10% or suspicious >85%)`);
                 }
 
-                // Save to Supabase in batches
+                // Save to Supabase in batches — track newly added deals for Telegram
+                const newlyAdded = [];
                 const batchSize = 5;
                 for (let i = 0; i < validItems.length; i += batchSize) {
                     const batch = validItems.slice(i, i + batchSize);
                     const results = await Promise.all(
                         batch.map(item => supabaseService.addDeal(item))
                     );
-                    for (const r of results) {
-                        if (r?.added) added++;
+                    for (let j = 0; j < results.length; j++) {
+                        const r = results[j];
+                        if (r?.added) {
+                            added++;
+                            // Attach the Supabase id so the notifier can track it
+                            newlyAdded.push({ ...batch[j], id: r.id });
+                        }
                         if (r?.updated) updated++;
+                    }
+                }
+
+                // Auto-post new deals with >= 40% discount to Telegram
+                if (newlyAdded.length > 0) {
+                    try {
+                        const { notifyNewDeals } = require('./telegram-notifier');
+                        const tg = await notifyNewDeals(newlyAdded);
+                        if (tg.sent > 0) {
+                            logger.info(`📱 Telegram: ${tg.sent} deal(s) posted to channel`);
+                        }
+                    } catch (tgErr) {
+                        logger.warn(`📱 Telegram notifier error: ${tgErr.message}`);
                     }
                 }
             }

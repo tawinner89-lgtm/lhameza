@@ -17,8 +17,8 @@ const { createClient } = require('@supabase/supabase-js');
 // ─── Config ──────────────────────────────────────────────────────────────────
 
 const POSTED_FILE = path.join(__dirname, '../data/posted-deals.json');
-const MIN_DISCOUNT = 30;
-const MAX_POSTS = 10;
+const MIN_DISCOUNT = 40;
+const MAX_POSTS = 20;
 // Keep only the last N IDs to prevent unbounded file growth
 const MAX_TRACKED_IDS = 500;
 
@@ -151,7 +151,7 @@ async function main() {
 
     const { data: deals, error } = await supabase
         .from('deals')
-        .select('id, title, price, original_price, discount, url, source, category, image_url')
+        .select('id, title, price, original_price, discount, url, source, category, image')
         .gte('created_at', since)
         .gte('discount', MIN_DISCOUNT)
         .order('discount', { ascending: false })
@@ -192,7 +192,7 @@ async function main() {
 
     for (const deal of toPost) {
         const text = formatDeal(deal);
-        const imageUrl = deal.image_url;
+        const imageUrl = deal.image;
         const result = imageUrl
             ? await sendTelegramPhoto(imageUrl, text)
             : await sendTelegram(text);
