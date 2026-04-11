@@ -72,13 +72,12 @@ class SupabaseService {
                 existing = data;
             }
             
-            // Second try: Title + Price + Source match
+            // Second try: Title + Source match (NOT price — prices change, we want to update them)
             if (!existing && title) {
                 const { data } = await this.client
                     .from('deals')
                     .select('id')
                     .ilike('title', title)
-                    .eq('price', price)
                     .eq('source', source)
                     .single();
                 existing = data;

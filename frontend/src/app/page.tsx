@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Navbar from '@/components/Navbar';
+import TelegramBanner from '@/components/TelegramBanner';
 import DealsTable from '@/components/DealsTable';
 import MobileBottomNav from '@/components/MobileBottomNav';
 import {
@@ -406,6 +407,7 @@ export default function HomePage() {
     <main className="min-h-screen bg-[#FAFAFA]">
       <Navbar />
       <div className="h-[56px] sm:h-14" aria-hidden="true" />
+      <TelegramBanner />
 
       {/* ── Tool header: search + stats ── */}
       <div className="bg-white border-b border-gray-200 py-4 sm:py-5">

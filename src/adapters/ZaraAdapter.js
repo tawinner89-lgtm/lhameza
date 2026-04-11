@@ -172,12 +172,16 @@ class ZaraAdapter extends BaseAdapter {
                 const allPrices = document.querySelectorAll('.money-amount__main');
                 
                 // Extract all price values as numbers
+                // IMPORTANT: Filter out small numbers (discount %, decimals) — real MAD prices are >= 50
                 const priceValues = [];
                 allPrices.forEach(el => {
                     const text = el.textContent?.trim();
                     if (text && text.match(/[\d.,]+/)) {
                         const numValue = parseFloat(text.replace(/[^\d.,]/g, '').replace(',', '.'));
-                        priceValues.push({ text, value: numValue });
+                        // Only accept values that look like real prices (>= 50 MAD, <= 100000 MAD)
+                        if (numValue >= 50 && numValue <= 100000) {
+                            priceValues.push({ text, value: numValue });
+                        }
                     }
                 });
 

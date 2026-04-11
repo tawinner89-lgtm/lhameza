@@ -22,8 +22,8 @@ class DecathlonAdapter extends BaseAdapter {
         });
 
         this.saleUrls = [
+            'https://www.decathlon.ma/5080-promotions',
             'https://www.decathlon.ma/3074-soldes',
-            'https://www.decathlon.ma/3062-promotions',
             'https://www.decathlon.ma/15-chaussures-sport',
             'https://www.decathlon.ma/16-vetements-sport'
         ];
@@ -49,75 +49,94 @@ class DecathlonAdapter extends BaseAdapter {
 
             const rawItems = await page.evaluate(() => {
                 const products = [];
-                
-                // Decathlon product card selectors
+
+                // Decathlon.ma uses PrestaShop — try multiple card selectors
                 const cardSelectors = [
-                    '.product-miniature',
-                    '[data-id-product]',
+                    'article.js-product-miniature',
+                    'article.product-miniature',
                     '.js-product-miniature',
+                    '[data-id-product]',
                     '.product-item',
                     'article.product'
                 ];
-                
+
                 let cards = [];
                 for (const selector of cardSelectors) {
                     cards = document.querySelectorAll(selector);
                     if (cards.length > 0) break;
                 }
-                
+
                 cards.forEach(card => {
                     try {
                         const getText = (sels) => {
                             const selectors = Array.isArray(sels) ? sels : [sels];
                             for (const sel of selectors) {
                                 const el = card.querySelector(sel);
-                                if (el?.textContent?.trim()) return el.textContent.trim();
+                                const text = el?.textContent?.trim();
+                                if (text) return text;
                             }
                             return '';
                         };
-                        
-                        const getAttr = (sel, attr) => {
-                            const el = card.querySelector(sel);
-                            return el?.getAttribute(attr) || '';
+
+                        const getAttr = (sels, attr) => {
+                            const selectors = Array.isArray(sels) ? sels : [sels];
+                            for (const sel of selectors) {
+                                const el = card.querySelector(sel);
+                                const val = el?.getAttribute(attr);
+                                if (val) return val;
+                            }
+                            return '';
                         };
-                        
+
+                        // Name — prefer the product title anchor text
                         const name = getText([
+                            '.product-title a',
                             '.product-title',
-                            '.product-name',
                             'h3.product-title',
-                            'h2',
-                            'a.product-name'
+                            '.product-name a',
+                            'h2 a',
+                            'h3 a'
                         ]);
-                        
+
+                        // Current (sale) price — PrestaShop puts it in .price
                         const currentPrice = getText([
-                            '.price',
-                            '.product-price',
-                            '.current-price',
-                            '[itemprop="price"]',
-                            '.price-new'
+                            '.product-price-and-shipping .price:not(.regular-price)',
+                            '.price-product .price',
+                            'span.price',
+                            '.current-price span',
+                            '[itemprop="price"]'
                         ]);
-                        
+
+                        // Original price (crossed-out)
                         const originalPrice = getText([
                             '.regular-price',
-                            '.old-price',
+                            '.price-product .regular-price',
+                            'del .price',
                             '.price-old',
-                            'del',
-                            '.price-before'
+                            's.price'
                         ]);
-                        
+
+                        // Discount badge (e.g. "-30%")
                         const discount = getText([
                             '.discount-percentage',
-                            '.discount',
-                            '.badge-sale',
-                            '.promotion-badge'
+                            '.discount-amount',
+                            '.badge-promo',
+                            '.promo-badge',
+                            '[class*="discount"]'
                         ]);
-                        
-                        const image = getAttr('img.product-thumbnail, img, .product-image img', 'src') ||
-                                     getAttr('img.product-thumbnail, img, .product-image img', 'data-src');
-                        
-                        const link = card.querySelector('a')?.href || 
-                                    getAttr('a.product-thumbnail, a', 'href');
-                        
+
+                        // Image — prefer data-src (lazy loaded)
+                        const image = getAttr(
+                            ['img.product-thumbnail', '.product-image img', 'img'],
+                            'data-src'
+                        ) || getAttr(
+                            ['img.product-thumbnail', '.product-image img', 'img'],
+                            'src'
+                        );
+
+                        // Product link
+                        const link = card.querySelector('a.product-thumbnail, h3 a, .product-title a, a')?.href || '';
+
                         if (name && name.length > 3) {
                             products.push({
                                 name,
@@ -130,7 +149,7 @@ class DecathlonAdapter extends BaseAdapter {
                         }
                     } catch (e) {}
                 });
-                
+
                 return products;
             });
 

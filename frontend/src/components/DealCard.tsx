@@ -22,6 +22,8 @@ const sourceConfig: Record<string, { name: string; logo?: string }> = {
   jumia: { name: 'JUMIA' },
   kitea: { name: 'KITEA' },
   aliexpress: { name: 'ALIEXPRESS' },
+  decathlon: { name: 'DECATHLON' },
+  electroplanet: { name: 'ELECTROPLANET' },
 };
 
 // Fix image URL issues

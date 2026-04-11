@@ -14,14 +14,16 @@ interface DealRowProps {
 }
 
 const sourceConfig: Record<string, { name: string; bg: string; text: string }> = {
-  adidas:   { name: 'Adidas',     bg: 'bg-black',        text: 'text-white' },
-  nike:     { name: 'Nike',       bg: 'bg-orange-600',   text: 'text-white' },
-  zara:     { name: 'Zara',       bg: 'bg-gray-800',     text: 'text-white' },
-  bershka:  { name: 'Bershka',    bg: 'bg-pink-600',     text: 'text-white' },
-  pullbear: { name: 'Pull&Bear',  bg: 'bg-green-700',    text: 'text-white' },
-  jumia:    { name: 'Jumia',      bg: 'bg-orange-500',   text: 'text-white' },
-  kitea:    { name: 'Kitea',      bg: 'bg-blue-600',     text: 'text-white' },
-  aliexpress: { name: 'AliExpress', bg: 'bg-red-600',    text: 'text-white' },
+  adidas:        { name: 'Adidas',        bg: 'bg-black',        text: 'text-white' },
+  nike:          { name: 'Nike',          bg: 'bg-orange-600',   text: 'text-white' },
+  zara:          { name: 'Zara',          bg: 'bg-gray-800',     text: 'text-white' },
+  bershka:       { name: 'Bershka',       bg: 'bg-pink-600',     text: 'text-white' },
+  pullbear:      { name: 'Pull&Bear',     bg: 'bg-green-700',    text: 'text-white' },
+  jumia:         { name: 'Jumia',         bg: 'bg-orange-500',   text: 'text-white' },
+  kitea:         { name: 'Kitea',         bg: 'bg-blue-600',     text: 'text-white' },
+  aliexpress:    { name: 'AliExpress',    bg: 'bg-red-600',      text: 'text-white' },
+  decathlon:     { name: 'Decathlon',     bg: 'bg-[#0082C3]',    text: 'text-white' },
+  electroplanet: { name: 'Electroplanet', bg: 'bg-[#F7A600]',    text: 'text-black' },
 };
 
 const categoryLabel: Record<string, { fr: string; ar: string }> = {
@@ -29,6 +31,7 @@ const categoryLabel: Record<string, { fr: string; ar: string }> = {
   fashion: { fr: 'Mode',    ar: 'موضة'  },
   home:    { fr: 'Maison',  ar: 'منزل'  },
   beauty:  { fr: 'Beauté',  ar: 'جمال'  },
+  sports:  { fr: 'Sport',   ar: 'رياضة' },
 };
 
 function getImageUrl(url: string | null | undefined, source?: string): string | null {
@@ -118,11 +121,11 @@ export default function DealRow({ deal, isPinned, isEven = true }: DealRowProps)
     }`}>
 
       {/* Thumbnail */}
-      <div className="hidden sm:flex w-9 h-9 rounded flex-shrink-0 overflow-hidden bg-gray-100 items-center justify-center">
+      <div className="flex w-8 h-8 sm:w-9 sm:h-9 rounded flex-shrink-0 overflow-hidden bg-gray-100 items-center justify-center">
         {imageUrl && !imgErr ? (
           <img src={imageUrl} alt="" className="w-full h-full object-cover" loading="lazy" referrerPolicy="no-referrer" onError={() => setImgErr(true)} />
         ) : (
-          <span className="text-base text-gray-300">{fallbackEmoji}</span>
+          <span className="text-sm sm:text-base text-gray-300">{fallbackEmoji}</span>
         )}
       </div>
 

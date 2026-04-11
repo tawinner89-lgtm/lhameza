@@ -8,7 +8,7 @@
  * Env:   TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, SUPABASE_URL, SUPABASE_ANON_KEY
  */
 
-require('dotenv').config();
+require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
@@ -24,7 +24,7 @@ const MAX_TRACKED_IDS = 500;
 
 // ─── Telegram ────────────────────────────────────────────────────────────────
 
-function sendTelegram(text) {
+function telegramPost(endpoint, payload) {
     const token = process.env.TELEGRAM_BOT_TOKEN;
     const chatId = process.env.TELEGRAM_CHAT_ID;
 
@@ -33,16 +33,11 @@ function sendTelegram(text) {
         return Promise.resolve(null);
     }
 
-    const body = JSON.stringify({
-        chat_id: chatId,
-        text,
-        parse_mode: 'HTML',
-        disable_web_page_preview: true,
-    });
+    const body = JSON.stringify({ chat_id: chatId, ...payload });
 
     return new Promise((resolve) => {
         const req = https.request(
-            `https://api.telegram.org/bot${token}/sendMessage`,
+            `https://api.telegram.org/bot${token}/${endpoint}`,
             {
                 method: 'POST',
                 headers: {
@@ -73,6 +68,22 @@ function sendTelegram(text) {
     });
 }
 
+function sendTelegram(text) {
+    return telegramPost('sendMessage', {
+        text,
+        parse_mode: 'HTML',
+        disable_web_page_preview: true,
+    });
+}
+
+function sendTelegramPhoto(imageUrl, caption) {
+    return telegramPost('sendPhoto', {
+        photo: imageUrl,
+        caption,
+        parse_mode: 'HTML',
+    });
+}
+
 // ─── Posted-deals tracker ────────────────────────────────────────────────────
 
 function loadPostedIds() {
@@ -98,22 +109,28 @@ function savePostedIds(ids) {
 
 function formatDeal(deal) {
     const title = (deal.title || deal.name || '').slice(0, 100);
-    const price = deal.price ? `${deal.price} MAD` : '?';
+    const price = deal.price != null ? deal.price : '?';
     const origPrice = deal.original_price || deal.originalPrice;
     const discount = deal.discount;
     const url = deal.url || deal.link || '';
+    const source = deal.source || '';
 
-    let line = `🔥 <b>${title}</b>\n`;
-    line += `💰 ${price}`;
+    let text = `🔥 ${title}\n\n`;
+    text += `💰 ${price} MAD`;
     if (origPrice && origPrice > (deal.price || 0)) {
-        line += ` (<s>${origPrice} MAD</s>)`;
+        text += `  <s>${origPrice} MAD</s>`;
     }
+    text += '\n';
     if (discount) {
-        line += ` -${discount}%`;
+        text += `📉 -${discount}%\n`;
     }
-    line += `\n👉 ${url}`;
+    if (source) {
+        text += `🏷️ ${source}\n`;
+    }
+    text += `\n👉 <a href="${url}">Voir le deal</a>\n\n`;
+    text += `🛒 lhamza.vercel.app`;
 
-    return line;
+    return text;
 }
 
 // ─── Main ────────────────────────────────────────────────────────────────────
@@ -134,7 +151,7 @@ async function main() {
 
     const { data: deals, error } = await supabase
         .from('deals')
-        .select('id, title, price, original_price, discount, url, source, category')
+        .select('id, title, price, original_price, discount, url, source, category, image_url')
         .gte('created_at', since)
         .gte('discount', MIN_DISCOUNT)
         .order('discount', { ascending: false })
@@ -175,7 +192,10 @@ async function main() {
 
     for (const deal of toPost) {
         const text = formatDeal(deal);
-        const result = await sendTelegram(text);
+        const imageUrl = deal.image_url;
+        const result = imageUrl
+            ? await sendTelegramPhoto(imageUrl, text)
+            : await sendTelegram(text);
         if (result && result.ok) {
             postedIds.add(String(deal.id));
             console.log(`[auto-post] Posted: ${(deal.title || deal.name || '').slice(0, 60)}`);

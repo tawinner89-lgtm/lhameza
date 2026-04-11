@@ -96,13 +96,22 @@ class ScraperService {
             let updated = 0;
             
             if (result.success && result.items?.length > 0) {
-                // Filter: only save deals with a real discount (>= 10%)
+                // Filter: only save deals with a real discount (>= 10% and <= 85%)
+                // Discounts > 85% are almost always a scraping error (e.g. discount badge
+                // number being picked up as the sale price).
+                const suspiciousItems = result.items.filter(
+                    item => item.discount != null && item.discount > 85
+                );
+                for (const item of suspiciousItems) {
+                    logger.warn(`⚠️ SUSPICIOUS PRICE SKIPPED — discount=${item.discount}% name="${item.name}" price=${item.price} original=${item.originalPrice} source=${item.source}`);
+                }
+
                 const validItems = result.items.filter(
-                    item => item.discount != null && item.discount >= 10
+                    item => item.discount != null && item.discount >= 10 && item.discount <= 85
                 );
                 const skipped = result.items.length - validItems.length;
                 if (skipped > 0) {
-                    logger.info(`🚫 Skipped ${skipped} items with no/low discount (<10%)`);
+                    logger.info(`🚫 Skipped ${skipped} items (no/low discount <10% or suspicious >85%)`);
                 }
 
                 // Save to Supabase in batches

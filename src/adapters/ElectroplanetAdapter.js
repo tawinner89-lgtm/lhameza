@@ -21,13 +21,13 @@ class ElectroplanetAdapter extends BaseAdapter {
             maxItems: 50
         });
 
+        // Primary promo pages — depliant first (weekly catalogue with explicit discounts)
         this.saleUrls = [
+            'https://www.electroplanet.ma/depliant/depliant-electroplanet.html',
             'https://www.electroplanet.ma/promotions',
             'https://www.electroplanet.ma/informatique/ordinateurs-portables',
             'https://www.electroplanet.ma/telephonie/smartphones',
-            'https://www.electroplanet.ma/tv-image-son/televiseurs',
-            'https://www.electroplanet.ma/gros-electromenager/refrigerateurs',
-            'https://www.electroplanet.ma/petit-electromenager'
+            'https://www.electroplanet.ma/tv-image-son/televiseurs'
         ];
     }
 
@@ -51,77 +51,107 @@ class ElectroplanetAdapter extends BaseAdapter {
 
             const rawItems = await page.evaluate(() => {
                 const products = [];
-                
-                // Electroplanet product card selectors
+
+                // Electroplanet uses PrestaShop — multiple possible card structures
                 const cardSelectors = [
+                    // Standard PrestaShop product cards
+                    'article.js-product-miniature',
+                    'article.product-miniature',
+                    '.js-product-miniature',
+                    // Custom Electroplanet theme
                     '.product-item',
-                    '.product-miniature',
-                    '[data-product-id]',
                     '.product-card',
+                    '[data-product-id]',
                     '.item-product'
                 ];
-                
+
                 let cards = [];
                 for (const selector of cardSelectors) {
                     cards = document.querySelectorAll(selector);
                     if (cards.length > 0) break;
                 }
-                
+
                 cards.forEach(card => {
                     try {
                         const getText = (sels) => {
                             const selectors = Array.isArray(sels) ? sels : [sels];
                             for (const sel of selectors) {
                                 const el = card.querySelector(sel);
-                                if (el?.textContent?.trim()) return el.textContent.trim();
+                                const text = el?.textContent?.trim();
+                                if (text) return text;
                             }
                             return '';
                         };
-                        
-                        const getAttr = (sel, attr) => {
-                            const el = card.querySelector(sel);
-                            return el?.getAttribute(attr) || '';
+
+                        const getAttr = (sels, attr) => {
+                            const selectors = Array.isArray(sels) ? sels : [sels];
+                            for (const sel of selectors) {
+                                const el = card.querySelector(sel);
+                                const val = el?.getAttribute(attr);
+                                if (val) return val;
+                            }
+                            return '';
                         };
-                        
+
                         const name = getText([
+                            '.product-title a',
                             '.product-title',
+                            '.product-name a',
                             '.product-name',
+                            'h3 a',
                             'h3',
+                            'h2 a',
                             'h2',
-                            '.name',
-                            'a.product-title'
+                            '.name'
                         ]);
-                        
+
+                        // Sale price — prefer explicit price selectors over generic ones
                         const currentPrice = getText([
-                            '.price',
-                            '.product-price',
-                            '.current-price',
+                            '.product-price-and-shipping .price:not(.regular-price)',
+                            'span.price:not(.regular-price)',
                             '.price-new',
-                            '[class*="price"]'
+                            '.current-price span',
+                            '[itemprop="price"]',
+                            '.price'
                         ]);
-                        
+
+                        // Original crossed-out price
                         const originalPrice = getText([
                             '.regular-price',
-                            '.old-price',
+                            'del .price',
                             '.price-old',
+                            '.old-price',
                             'del',
-                            '.price-was'
+                            's'
                         ]);
-                        
+
+                        // Discount badge (e.g. "-20%", "Promo -30%")
                         const discount = getText([
                             '.discount-percentage',
-                            '.discount-badge',
+                            '.discount-amount',
                             '.badge-promo',
-                            '.reduction',
-                            '[class*="discount"]'
+                            '.promo-percentage',
+                            '[class*="discount"]',
+                            '[class*="promo"]',
+                            '.reduction'
                         ]);
-                        
-                        const image = getAttr('img', 'src') || 
-                                     getAttr('img', 'data-src') ||
-                                     getAttr('img', 'data-lazy');
-                        
-                        const link = card.querySelector('a')?.href;
-                        
+
+                        // Image with fallbacks for lazy-loading
+                        const image = getAttr(
+                            ['img.product-thumbnail', '.product-image img', 'img'],
+                            'data-src'
+                        ) || getAttr(
+                            ['img.product-thumbnail', '.product-image img', 'img'],
+                            'src'
+                        ) || getAttr(
+                            ['img'],
+                            'data-lazy'
+                        );
+
+                        const link = card.querySelector(
+                            'a.product-thumbnail, .product-title a, h3 a, a'
+                        )?.href || '';
+
                         if (name && name.length > 3) {
                             products.push({
                                 name,
@@ -134,7 +164,7 @@ class ElectroplanetAdapter extends BaseAdapter {
                         }
                     } catch (e) {}
                 });
-                
+
                 return products;
             });
 

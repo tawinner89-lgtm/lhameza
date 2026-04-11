@@ -40,6 +40,17 @@ export default function Navbar() {
 
           {/* Right */}
           <div className="flex items-center gap-2 sm:gap-3">
+            <a
+              href="https://t.me/lhamzadeals"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Rejoindre le canal Telegram"
+              className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-[#E8F4FD] transition-colors"
+            >
+              <svg viewBox="0 0 24 24" className="w-5 h-5" fill="#229ED9" aria-hidden="true">
+                <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.248-1.97 9.289c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L7.166 14.5l-2.95-.924c-.64-.203-.652-.64.136-.954l11.526-4.444c.537-.194 1.006.131.684.07z"/>
+              </svg>
+            </a>
             <LanguageToggle onChanged={(l) => void trackLocaleChanged(l)} />
             <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 rounded text-xs font-bold text-gray-600">
               <span>🇲🇦</span>
