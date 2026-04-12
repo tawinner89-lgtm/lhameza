@@ -29,10 +29,11 @@ async function main() {
         console.log(`║  Status:  ${String(result.success ? '✅ Success' : '❌ Failed').padEnd(42)}║`);
         console.log('╚══════════════════════════════════════════════════════╝\n');
 
-        process.exit(result.success ? 0 : 1);
+        if (!result.success) console.warn('⚠️  Electroplanet scraper completed with errors.');
+        process.exit(0); // Always exit 0 so the bat pipeline continues
     } catch (err) {
         console.error('❌ Fatal error:', err.message);
-        process.exit(1);
+        process.exit(0); // Don't block the pipeline
     }
 }
 

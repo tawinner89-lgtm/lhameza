@@ -358,4 +358,7 @@ async function main() {
     console.log('\n✅ Pull&Bear scrape complete!\n');
 }
 
-main().catch(console.error);
+main().catch(err => {
+    console.error('❌ Fatal error:', err.message);
+    process.exit(0); // Always exit 0 so the bat pipeline continues
+});
