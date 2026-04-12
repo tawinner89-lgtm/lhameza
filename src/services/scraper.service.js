@@ -133,6 +133,12 @@ class ScraperService {
                     }
                 }
 
+                // Remove deals from this source that were NOT refreshed in this run
+                // (scraped_at < startTime means they weren't touched = they're gone from the site)
+                const runStart = new Date(startTime).toISOString();
+                const actualSource = validItems[0]?.source || adapterName;
+                await supabaseService.removeStaleDeals(actualSource, runStart);
+
                 // Auto-post new deals with >= 40% discount to Telegram
                 if (newlyAdded.length > 0) {
                     try {

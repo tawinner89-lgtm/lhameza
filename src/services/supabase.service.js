@@ -466,6 +466,56 @@ class SupabaseService {
     }
 
     /**
+     * Remove stale deals for a source — deletes any deal whose scraped_at is older
+     * than runStartTime, meaning it was NOT refreshed in the latest scrape run.
+     * Only call this after a successful run that produced items.
+     */
+    async removeStaleDeals(source, runStartTime) {
+        if (!this.initialized) await this.initialize();
+        if (!this.client || !source || !runStartTime) return { deleted: 0 };
+
+        try {
+            const { error, count } = await this.client
+                .from('deals')
+                .delete({ count: 'exact' })
+                .eq('source', source)
+                .lt('scraped_at', runStartTime);
+
+            if (error) throw error;
+            const deleted = count || 0;
+            if (deleted > 0) logger.info(`Removed ${deleted} stale deals from ${source}`);
+            return { deleted };
+        } catch (error) {
+            logger.error('Failed to remove stale deals', { error: error.message, source });
+            return { deleted: 0 };
+        }
+    }
+
+    /**
+     * Delete deals with discount > maxDiscount — these are almost always scraping errors
+     * (e.g. a badge number mistaken for the sale price).
+     */
+    async cleanupSuspiciousDeals(maxDiscount = 85) {
+        if (!this.initialized) await this.initialize();
+        if (!this.client) return { deleted: 0 };
+
+        try {
+            const { error, count } = await this.client
+                .from('deals')
+                .delete({ count: 'exact' })
+                .gt('discount', maxDiscount);
+
+            if (error) throw error;
+            const deleted = count || 0;
+            logger.info(`Cleaned up ${deleted} suspicious deals (discount > ${maxDiscount}%)`);
+            return { deleted };
+        } catch (error) {
+            logger.error('Failed to cleanup suspicious deals', { error: error.message });
+            return { deleted: 0 };
+        }
+    }
+
+    /**
      * Get recent scrape logs
      */
     async getScrapeLogs(limit = 20) {

@@ -22,8 +22,8 @@ class DecathlonAdapter extends BaseAdapter {
         });
 
         this.saleUrls = [
-            'https://www.decathlon.ma/5080-promotions',
-            'https://www.decathlon.ma/3074-soldes',
+            'https://www.decathlon.ma/5236-soldes',        // primary soldes page
+            'https://www.decathlon.ma/5080-promotions',    // promotions backup
             'https://www.decathlon.ma/15-chaussures-sport',
             'https://www.decathlon.ma/16-vetements-sport'
         ];
@@ -38,14 +38,35 @@ class DecathlonAdapter extends BaseAdapter {
             
             logger.info(`${this.name}: Scraping`, { url: targetUrl });
             
-            await page.goto(targetUrl, { 
-                waitUntil: 'networkidle', 
-                timeout: this.timeout 
-            });
-            
+            // Use networkidle so JS-rendered product cards are fully loaded
+            try {
+                await page.goto(targetUrl, { waitUntil: 'networkidle', timeout: this.timeout });
+            } catch (e) {
+                await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: this.timeout });
+                await this.randomDelay(5000, 7000);
+            }
+
             await this.handleCookieConsent(page);
-            await this.randomDelay(2000, 4000);
+            await this.randomDelay(2000, 3000);
+
+            // Wait for product cards before extracting
+            const productCardSelector = [
+                'article.js-product-miniature',
+                'article.product-miniature',
+                '[data-id-product]',
+                '.product-item',
+                '.product-thumb',
+                '.vtex-product-summary',
+            ].join(',');
+
+            try {
+                await page.waitForSelector(productCardSelector, { timeout: 15000 });
+            } catch (e) {
+                logger.warn(`${this.name}: No product cards found after wait on ${targetUrl}`);
+            }
+
             await this.scrollPage(page, 6);
+            await this.randomDelay(1000, 2000);
 
             const rawItems = await page.evaluate(() => {
                 const products = [];
@@ -55,9 +76,12 @@ class DecathlonAdapter extends BaseAdapter {
                     'article.js-product-miniature',
                     'article.product-miniature',
                     '.js-product-miniature',
+                    '.product-miniature',
                     '[data-id-product]',
                     '.product-item',
-                    'article.product'
+                    '.product-thumb',
+                    'article.product',
+                    'li.ajax_block_product'
                 ];
 
                 let cards = [];
@@ -101,28 +125,39 @@ class DecathlonAdapter extends BaseAdapter {
                         // Current (sale) price — PrestaShop puts it in .price
                         const currentPrice = getText([
                             '.product-price-and-shipping .price:not(.regular-price)',
-                            '.price-product .price',
-                            'span.price',
+                            '.price__current',
+                            '.price-product .price:not(.old-price)',
+                            'span.price:not(.regular-price):not(.old-price)',
+                            '.current-price-value',
                             '.current-price span',
-                            '[itemprop="price"]'
+                            '[itemprop="price"]',
+                            '.special-price .price',
+                            'span.price'
                         ]);
 
                         // Original price (crossed-out)
                         const originalPrice = getText([
                             '.regular-price',
+                            '.price__old',
                             '.price-product .regular-price',
                             'del .price',
                             '.price-old',
-                            's.price'
+                            '.crossed-out .price',
+                            's.price',
+                            'del'
                         ]);
 
-                        // Discount badge (e.g. "-30%")
+                        // Discount badge (e.g. "-30%", "SOLDES")
                         const discount = getText([
                             '.discount-percentage',
                             '.discount-amount',
+                            '.badge-discount',
                             '.badge-promo',
                             '.promo-badge',
-                            '[class*="discount"]'
+                            '.product-flag.discount',
+                            '.product-flag.on-sale',
+                            '[class*="discount"]',
+                            '.flag-discount'
                         ]);
 
                         // Image — prefer data-src (lazy loaded)
