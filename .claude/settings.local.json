@@ -15,7 +15,12 @@
       "Bash(npm run:*)",
       "Bash(vercel build:*)",
       "Bash(vercel pull:*)",
-      "Bash(where node:*)"
+      "Bash(where node:*)",
+      "Bash(node_modules/.bin/tsc --noEmit)",
+      "Bash(node -e \"const a = require\\('./src/adapters'\\); console.log\\('Adapters loaded:', Object.keys\\(a.ADAPTERS_CONFIG\\).join\\(', '\\)\\)\")",
+      "Bash(node scripts/fix-bad-prices.js --dry-run)",
+      "Bash(node scripts/fix-bad-prices.js)",
+      "Bash(node -e ':*)"
     ]
   }
 }
