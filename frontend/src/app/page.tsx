@@ -40,7 +40,7 @@ export const SOURCES = [
   { id: 'pullbear',   name: 'Pull&Bear'  },
   { id: 'jumia',      name: 'Jumia'      },
   { id: 'kitea',      name: 'Kitea'      },
-  { id: 'aliexpress', name: 'AliExpress' },
+  { id: 'lsmaroc',   name: 'LS Maroc'   },
 ];
 
 // ─── Sidebar filter panel ───────────────────────────────────────────────────
@@ -52,6 +52,7 @@ interface SidebarFiltersProps {
   priceMin: string;
   priceMax: string;
   hasActiveFilters: boolean;
+  categoryCounts: Record<string, number>;  // B4: deal count per category
   onCategoryChange: (c: string) => void;
   onToggleSource: (id: string) => void;
   onDiscountChange: (v: number) => void;
@@ -63,7 +64,7 @@ interface SidebarFiltersProps {
 
 function SidebarFilters({
   locale, selectedCategory, selectedSources, minDiscount,
-  priceMin, priceMax, hasActiveFilters,
+  priceMin, priceMax, hasActiveFilters, categoryCounts,
   onCategoryChange, onToggleSource, onDiscountChange,
   onPriceMinChange, onPriceMaxChange, onReset, onClose,
 }: SidebarFiltersProps) {
@@ -88,7 +89,15 @@ function SidebarFilters({
               }`}
             >
               <span>{cat.emoji}</span>
-              <span>{t(locale as 'fr' | 'ar', cat.labelKey)}</span>
+              <span className="flex-1">{t(locale as 'fr' | 'ar', cat.labelKey)}</span>
+              {/* B4: deal count per category */}
+              {cat.id !== 'all' && cat.id !== 'super-hamza' && cat.id !== 'saved' && categoryCounts[cat.id] > 0 && (
+                <span className={`text-[9px] font-bold px-1 rounded ${
+                  selectedCategory === cat.id ? 'bg-white/30 text-white' : 'bg-gray-200 text-gray-500'
+                }`}>
+                  {categoryCounts[cat.id]}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -344,7 +353,7 @@ export default function HomePage() {
           trackSearch(searchQuery);
         } catch { /* silent */ }
         finally { setIsSearching(false); }
-      }, 300);
+      }, 200);
     } else if (searchQuery.length === 0) {
       setIsSearchActive(false);
       setSearchResults([]);
@@ -395,6 +404,7 @@ export default function HomePage() {
     priceMin,
     priceMax,
     hasActiveFilters,
+    categoryCounts: stats.byCategory,   // B4
     onCategoryChange: handleCategoryChange,
     onToggleSource: toggleSource,
     onDiscountChange: setMinDiscount,
@@ -456,7 +466,8 @@ export default function HomePage() {
               <>
                 <span className="text-gray-300">|</span>
                 <span className="text-[#FF5500] font-semibold">
-                  {displayDeals.length} {locale === 'ar' ? 'نتيجة' : 'résultats'}
+                  {displayDeals.length} {locale === 'ar' ? 'نتيجة لـ' : 'résultat(s) pour'}{' '}
+                  <span className="italic">"{searchQuery}"</span>
                 </span>
                 <button onClick={clearSearch} className="text-[#FF5500] underline font-semibold">
                   {locale === 'ar' ? 'مسح' : 'Effacer'}
@@ -572,6 +583,7 @@ export default function HomePage() {
                 onRetry={() => { fetchDeals(selectedCategory); fetchStats(); }}
                 sortBy={sortBy}
                 onSortChange={setSortBy}
+                searchQuery={isSearchActive ? searchQuery : undefined}
               />
             )}
 

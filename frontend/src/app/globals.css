@@ -580,6 +580,7 @@ img {
 .brand-glow-aliexpress:hover    { box-shadow: 0 8px 30px rgba(255, 71, 71, 0.25); }
 .brand-glow-decathlon:hover     { box-shadow: 0 8px 30px rgba(0, 130, 195, 0.28); }
 .brand-glow-electroplanet:hover { box-shadow: 0 8px 30px rgba(247, 166, 0, 0.28); }
+.brand-glow-lsmaroc:hover       { box-shadow: 0 8px 30px rgba(0, 0, 0, 0.22); }
 
 /* Brand stripe (left border on card) */
 .brand-stripe::before {
@@ -607,6 +608,7 @@ img {
 .brand-stripe-aliexpress::before    { background: linear-gradient(to bottom, #FF4747, #CC0000); }
 .brand-stripe-decathlon::before     { background: linear-gradient(to bottom, #0082C3, #005F8F); }
 .brand-stripe-electroplanet::before { background: linear-gradient(to bottom, #F7A600, #D48900); }
+.brand-stripe-lsmaroc::before       { background: linear-gradient(to bottom, #000000, #333333); }
 
 /* Brand CTA button colors */
 .brand-cta-nike         { background: linear-gradient(135deg, #FF6B35, #F7931E) !important; }
@@ -619,6 +621,7 @@ img {
 .brand-cta-aliexpress   { background: linear-gradient(135deg, #FF4747, #CC0000) !important; }
 .brand-cta-decathlon    { background: linear-gradient(135deg, #0082C3, #005F8F) !important; }
 .brand-cta-electroplanet { background: linear-gradient(135deg, #F7A600, #D48900) !important; color: #000 !important; }
+.brand-cta-lsmaroc       { background: linear-gradient(135deg, #000000, #222222) !important; }
 
 /* Brand discount badge */
 .brand-badge-nike    { background: #FF6B35; }

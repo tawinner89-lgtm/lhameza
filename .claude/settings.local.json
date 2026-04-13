@@ -20,7 +20,29 @@
       "Bash(node -e \"const a = require\\('./src/adapters'\\); console.log\\('Adapters loaded:', Object.keys\\(a.ADAPTERS_CONFIG\\).join\\(', '\\)\\)\")",
       "Bash(node scripts/fix-bad-prices.js --dry-run)",
       "Bash(node scripts/fix-bad-prices.js)",
-      "Bash(node -e ':*)"
+      "Bash(node -e ':*)",
+      "Bash(node scripts/test-admitad.js)",
+      "Bash(python -c ':*)",
+      "Bash(ls src/models/)",
+      "Bash(ls src/utils/)",
+      "Bash(ls frontend/src/app/)",
+      "Bash(ls frontend/src/components/)",
+      "Bash(ls frontend/src/lib/)",
+      "Bash(grep -rn \"src/api\\\\|src/models\\\\|database-v2\\\\|run-morocco\\\\|run-fashion\\\\|run-smart\\\\|run-all\\\\.js\" scripts/ --include=\"*.js\" -l)",
+      "Bash(grep -rn \"require.*src/api\\\\|require.*src/models\" scripts/ --include=\"*.js\" -l)",
+      "Bash(grep -rl \"require\\('canvas'\\)\\\\|require\\(\\\\\"canvas\\\\\"\\)\" scripts/ src/)",
+      "Bash(grep -rl \"require\\('express'\\)\\\\|require\\(\\\\\"express\\\\\"\\)\" scripts/ src/)",
+      "Bash(grep -rl \"node-cron\\\\|require\\('yargs'\\)\\\\|require\\(\\\\\"yargs\\\\\"\\)\" scripts/ src/)",
+      "Bash(grep -rl \"playwright-extra\\\\|puppeteer-extra\" scripts/ src/)",
+      "Bash(grep -rl \"require\\('uuid'\\)\\\\|require\\(\\\\\"uuid\\\\\"\\)\" scripts/ src/)",
+      "Bash(node scripts/scrape-zara.js)",
+      "Bash(curl -s \"https://lsmaroc.com/products.json?limit=5\")",
+      "Bash(curl -s \"https://lsmaroc.com/products.json?limit=250\")",
+      "Bash(node scripts/scrape-lsmaroc.js)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"https://lsmaroc.com/products.json?limit=250&page=1\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"https://lsmaroc.com/products.json?limit=250\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"https://lsmaroc.com/products.json\")",
+      "Bash(node scripts/scrape-zara.js --maxProducts 8)"
     ]
   }
 }

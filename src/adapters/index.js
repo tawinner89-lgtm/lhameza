@@ -34,6 +34,9 @@ const AliExpressAdapter = require('./AliExpressAdapter');
 // Home / Furniture
 const IKEAAdapter = require('./IKEAAdapter');
 
+// LS Maroc (Shopify — JSON API, no Playwright)
+const LSMarocAdapter = require('./LSMarocAdapter');
+
 // Fashion Brands (Scroll-based scraping)
 const ZaraAdapter = require('./ZaraAdapter');
 const AdidasAdapter = require('./AdidasAdapter');
@@ -267,6 +270,15 @@ const ADAPTERS_CONFIG = {
         country: 'MA',
         emoji: '🛋️',
         priority: 1
+    },
+
+    // LS Maroc — Shopify fashion store (Nike, Lyle & Scott, Weekend Offender…)
+    lsmaroc: {
+        Adapter: LSMarocAdapter,
+        category: 'fashion',
+        country: 'MA',
+        emoji: '🖤',
+        priority: 1
     }
 };
 
@@ -357,6 +369,7 @@ module.exports = {
     BershkaAdapter,
     NikeAdapter,
     JumiaFashionAdapter,
+    LSMarocAdapter,
     
     // Configuration
     ADAPTERS_CONFIG,

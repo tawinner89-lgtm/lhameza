@@ -174,7 +174,10 @@ class ZaraAdapter extends BaseAdapter {
 
                 function parseMAD(text) {
                     if (!text) return null;
-                    const n = parseFloat(text.replace(/[^\d.,]/g, '').replace(',', '.'));
+                    // Remove ALL whitespace (including non-breaking space U+00A0, thin space, etc.)
+                    // then treat comma as decimal separator (French/Moroccan format: "1 199,00 MAD")
+                    const cleaned = text.replace(/\s/g, '').replace('MAD', '').replace(',', '.').replace(/[^0-9.]/g, '');
+                    const n = parseFloat(cleaned);
                     // Sanity: real MAD clothing prices are 50–15000
                     return (!isNaN(n) && n >= 50 && n <= 15000) ? n : null;
                 }
@@ -258,11 +261,23 @@ class ZaraAdapter extends BaseAdapter {
                     if (m) discount = parseInt(m[1]);
                 }
 
-                return { currentPrice, originalPrice, discount, name, image };
+                // Collect raw price texts for debug logging (Node will print these)
+                const rawPriceTexts = [];
+                const allMoneyEls = document.querySelectorAll('.money-amount__main');
+                allMoneyEls.forEach(el => rawPriceTexts.push(el.textContent));
+
+                return { currentPrice, originalPrice, discount, name, image, rawPriceTexts };
             });
 
+            // Debug: log raw price text so we can verify parsing
+            if (details) {
+                const rawTexts = (details.rawPriceTexts || []).join(' | ');
+                console.log(`RAW PRICE TEXT: [${rawTexts}] → current=${details.currentPrice} original=${details.originalPrice}`);
+                delete details.rawPriceTexts;
+            }
+
             return details;
-            
+
         } catch (error) {
             logger.warn(`${this.name}: Error on ${productUrl}: ${error.message}`);
             return null;

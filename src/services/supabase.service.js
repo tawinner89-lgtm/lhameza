@@ -54,6 +54,25 @@ class SupabaseService {
         if (!this.client) return { added: false, error: 'Not connected' };
 
         try {
+            // ── Validation: reject suspicious/broken data ──────────────────
+            const price = deal.price || 0;
+            const originalPrice = deal.originalPrice || deal.original_price || 0;
+            const discount = deal.discount || 0;
+
+            if (price <= 0) {
+                logger.warn(`Skipping deal (price <= 0): ${deal.name || deal.title}`);
+                return { added: false, skipped: true, reason: 'price <= 0' };
+            }
+            if (originalPrice > 0 && originalPrice <= price) {
+                logger.warn(`Skipping deal (original_price <= price): ${deal.name || deal.title} — orig=${originalPrice} cur=${price}`);
+                return { added: false, skipped: true, reason: 'original_price <= price' };
+            }
+            if (discount > 75) {
+                logger.warn(`Skipping deal (discount ${discount}% > 75%): ${deal.name || deal.title}`);
+                return { added: false, skipped: true, reason: `discount ${discount}% > 75%` };
+            }
+            // ──────────────────────────────────────────────────────────────
+
             // Create a unique key for deduplication
             const title = (deal.name || deal.title || '').toLowerCase().trim();
             const price = deal.price || 0;

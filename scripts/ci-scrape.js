@@ -69,8 +69,8 @@ const RELIABLE = [
     'hmall',
     'cosmetique',
     'yvesrocher',
-    'aliexpress',
     'ikea',
+    'lsmaroc',
 ];
 
 // Group 2: Fashion brands (Playwright-heavy, may hit rate limits)
@@ -90,8 +90,8 @@ const INTERNATIONAL = [
 
 // Category mapping
 const CATEGORY_ADAPTERS = {
-    tech: ['jumia_tech', 'electroplanet', 'ultrapc', 'aliexpress'],
-    fashion: ['jumia_fashion', 'jumia_brands', 'zara', 'bershka', 'pullbear', 'lcwaikiki', 'nike', 'adidas'],
+    tech: ['jumia_tech', 'electroplanet', 'ultrapc'],
+    fashion: ['jumia_fashion', 'jumia_brands', 'zara', 'bershka', 'pullbear', 'lcwaikiki', 'nike', 'adidas', 'lsmaroc'],
     home: ['jumia_home', 'marjane', 'kitea', 'bim', 'ikea'],
     beauty: ['jumia_beauty', 'hmizate_beauty', 'hmall', 'cosmetique', 'yvesrocher'],
     sports: ['decathlon'],

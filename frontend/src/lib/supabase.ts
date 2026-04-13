@@ -143,10 +143,10 @@ export async function getDeals(params?: {
     query = query.eq('source', params.source);
   }
 
-  // Only show deals scraped in the last 30 days — hides expired/stale deals
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  query = query.gte('scraped_at', thirtyDaysAgo.toISOString());
+  // Only show deals scraped in the last 7 days — hides stale/expired deals
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  query = query.gte('scraped_at', sevenDaysAgo.toISOString());
 
   // Map sortBy to database column
   const sortMapping: Record<string, string> = {
