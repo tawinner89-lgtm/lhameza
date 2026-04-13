@@ -1,31 +1,33 @@
 /**
- * L'HAMZA F SEL'A - AliExpress Scraper 🛒
- * Scrapes trending/discounted AliExpress products for Morocco
- * Prices converted USD → MAD automatically
+ * L'HAMZA F SEL'A - IKEA Morocco Scraper 🛋️
+ * Scrapes home & furniture deals from IKEA Morocco
  *
- * Usage: node scripts/scrape-aliexpress.js
+ * Usage: node scripts/scrape-ikea.js [--minDiscount N]
  */
 
 require('dotenv').config();
-const AliExpressAdapter = require('../src/adapters/AliExpressAdapter');
+const IKEAAdapter = require('../src/adapters/IKEAAdapter');
 const supabaseService = require('../src/services/supabase.service');
 
-const MIN_DISCOUNT = 10;
+const args = process.argv.slice(2);
+const getArg = (name, def) => {
+    const idx = args.indexOf(`--${name}`);
+    return idx !== -1 && args[idx + 1] ? args[idx + 1] : def;
+};
+const MIN_DISCOUNT = parseInt(getArg('minDiscount', '10'));
 
 async function saveItems(items, totalStats) {
     for (const item of items) {
+        item.category = 'home';
         const saveResult = await supabaseService.addDeal(item);
-        if (saveResult.added) {
-            totalStats.added++;
-        } else if (saveResult.updated) {
-            totalStats.updated++;
-        }
+        if (saveResult.added) totalStats.added++;
+        else if (saveResult.updated) totalStats.updated++;
     }
 }
 
 async function main() {
     console.log('\n╔════════════════════════════════════════════════════════════════╗');
-    console.log('║   🛒 L\'HAMZA F SEL\'A - AliExpress Scraper                      ║');
+    console.log('║   🛋️  L\'HAMZA F SEL\'A - IKEA Morocco Scraper                   ║');
     console.log('╚════════════════════════════════════════════════════════════════╝\n');
 
     const totalStats = { added: 0, updated: 0 };
@@ -34,9 +36,9 @@ async function main() {
         await supabaseService.initialize();
         console.log('✅ Database connected\n');
 
-        const adapter = new AliExpressAdapter();
+        const adapter = new IKEAAdapter();
 
-        console.log('📦 ALIEXPRESS');
+        console.log('📦 IKEA MOROCCO');
         console.log('═'.repeat(60) + '\n');
 
         const result = await adapter.scrapeWithRetry();
@@ -44,22 +46,18 @@ async function main() {
         if (!result.success || !result.items || result.items.length === 0) {
             console.log('   ⚠️  No items found');
         } else {
-            // Filter: only deals with >= 10% discount
-            // Note: formatDeal() calculates discount from originalPrice/price when not
-            // explicitly provided, so trust the discount field set by the adapter.
-            const validDeals = result.items.filter(item => {
-                if (item.discount != null && item.discount >= MIN_DISCOUNT) return true;
-                // Also accept items that have both prices and the difference is >= MIN_DISCOUNT%
-                if (item.price && item.originalPrice && item.originalPrice > item.price) {
-                    const pct = Math.round((1 - item.price / item.originalPrice) * 100);
-                    return pct >= MIN_DISCOUNT;
-                }
-                return false;
-            });
+            const validDeals = result.items.filter(
+                item => item.discount != null && item.discount >= MIN_DISCOUNT
+            );
 
             console.log(`   ✅ Found ${result.items.length} items (${validDeals.length} with valid discounts ≥${MIN_DISCOUNT}%)`);
 
             if (validDeals.length > 0) {
+                // Log sample deals
+                validDeals.slice(0, 5).forEach(d => {
+                    const was = d.originalPrice ? ` (was ${d.originalPrice} MAD)` : '';
+                    console.log(`   → ${d.name?.slice(0, 50)} — ${d.price} MAD${was} -${d.discount}%`);
+                });
                 await saveItems(validDeals, totalStats);
             }
         }

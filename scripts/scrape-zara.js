@@ -117,12 +117,11 @@ async function collectProductLinks(page) {
     return Array.from(allLinks).slice(0, maxProducts);
 }
 
-async function getProductDetails(page, productUrl) {
+async function getProductDetails(page, productUrl, showDebug = false) {
     try {
         await page.goto(productUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
         await randomDelay(2000, 3500);
 
-        // Wait for price
         try {
             await page.waitForSelector('.money-amount__main, [class*="price"]', { timeout: 10000 });
         } catch (e) {}
@@ -133,69 +132,168 @@ async function getProductDetails(page, productUrl) {
             let originalPrice = null;
             let discount = null;
             let image = null;
+            // Debug info — populated regardless, printed only for first N products
+            const _debug = { priceBoxClass: null, allMoneyEls: [], rawPrices: [] };
 
-            // NAME
-            const nameEl = document.querySelector('h1.product-detail-info__header-name, h1[class*="product"], h1');
-            if (nameEl) {
-                name = nameEl.textContent?.trim();
-            }
+            // ── NAME ──────────────────────────────────────────────────────────
+            const nameEl = document.querySelector(
+                'h1.product-detail-info__header-name, h1[class*="product"], h1'
+            );
+            if (nameEl) name = nameEl.textContent?.trim();
 
-            // IMAGE
-            const imgEl = document.querySelector('.media-image__image img, picture img, img[src*="zara.net"]');
-            if (imgEl) {
-                image = imgEl.src || imgEl.getAttribute('data-src');
-            }
+            // ── IMAGE ─────────────────────────────────────────────────────────
+            const imgEl = document.querySelector(
+                '.media-image__image img, picture img, img[src*="zara.net"]'
+            );
+            if (imgEl) image = imgEl.src || imgEl.getAttribute('data-src');
             if (!image || image.includes('transparent')) {
-                const source = document.querySelector('picture source[srcset]');
-                if (source) {
-                    image = source.getAttribute('srcset').split(',')[0].split(' ')[0];
-                }
+                const src = document.querySelector('picture source[srcset]');
+                if (src) image = src.getAttribute('srcset').split(',')[0].split(' ')[0];
             }
 
-            // PRICES - Get all price elements
-            const allPrices = document.querySelectorAll('.money-amount__main');
-            const priceValues = [];
-            
-            allPrices.forEach(el => {
-                const text = el.textContent?.trim();
-                if (text && text.match(/[\d.,]+/)) {
-                    const numValue = parseFloat(text.replace(/[^\d.,]/g, '').replace(',', '.'));
-                    if (!isNaN(numValue)) {
-                        priceValues.push({ text, value: numValue });
-                    }
+            // ── PARSE MAD ─────────────────────────────────────────────────────
+            // Handles French number format used on Zara.ma:
+            //   "699,00 MAD"    → 699
+            //   "1 199,00 MAD"  → 1199  (regular space as thousands sep)
+            //   "1\u00a0199,00" → 1199  (non-breaking space as thousands sep)
+            //   "1.199,00 MAD"  → 1199  (period as thousands sep)
+            function parseMAD(text) {
+                if (!text) return null;
+                let s = text.trim();
+                // Normalise non-breaking spaces to regular spaces
+                s = s.replace(/[\u00a0\u202f\u2009]/g, ' ');
+                // Strip currency symbol
+                s = s.replace(/\s*(MAD|DH|dh)\s*/gi, '').trim();
+                if (!s) return null;
+
+                if (s.match(/,\d{1,2}$/)) {
+                    // Comma = decimal separator (French): "1 199,00" or "1.199,00"
+                    s = s.replace(/[\s.]/g, '').replace(',', '.');
+                } else if (s.match(/\.\d{1,2}$/) && !s.match(/^\d+\.\d{3}/)) {
+                    // Period = decimal separator: "699.00"
+                    s = s.replace(/[\s,]/g, '');
+                } else {
+                    // Integer price or ambiguous — strip all separators
+                    s = s.replace(/[\s.,]/g, '');
                 }
+
+                const n = parseFloat(s);
+                // Sanity: real MAD clothing prices are between 50 and 15 000
+                return (!isNaN(n) && n >= 50 && n <= 15000) ? n : null;
+            }
+
+            // ── DEBUG: snapshot every .money-amount__main on the page ─────────
+            document.querySelectorAll('.money-amount__main').forEach(el => {
+                _debug.allMoneyEls.push({
+                    text: el.textContent?.trim(),
+                    inDel: !!el.closest('del'),
+                    inS: !!el.closest('s'),
+                    parentClass: (el.parentElement?.className || '').slice(0, 50),
+                });
             });
 
-            // Sort by value - highest is original, lowest is current
-            if (priceValues.length >= 2) {
-                priceValues.sort((a, b) => b.value - a.value);
-                originalPrice = priceValues[0].value;
-                currentPrice = priceValues[priceValues.length - 1].value;
-            } else if (priceValues.length === 1) {
-                currentPrice = priceValues[0].value;
-            }
+            // ── STEP 1: Find the price container (scoped lookup) ───────────────
+            // NEVER query the whole page — related-product carousels contain
+            // many other prices that corrupt a "sort by value" approach.
+            const priceBox = document.querySelector([
+                '.product-detail-info__price',
+                '.price-current__wrapper',
+                '[class*="product-detail-info"] [class*="price"]',
+                '.pdp-price',
+                '[data-qa-label="product-price"]',
+                '.product-detail-info',
+            ].join(','));
 
-            // Calculate discount
-            if (originalPrice && currentPrice && originalPrice > currentPrice) {
-                discount = Math.round((1 - currentPrice / originalPrice) * 100);
-            }
+            _debug.priceBoxClass = priceBox ? priceBox.className.trim() : 'NOT FOUND';
+            const scope = priceBox || document;
 
-            // Try to get discount from page
-            if (!discount) {
-                const discountEl = document.querySelector('[class*="discount"], .price-current__discount');
-                if (discountEl) {
-                    const match = discountEl.textContent?.match(/-?(\d+)%/);
-                    if (match) discount = parseInt(match[1]);
+            // ── STEP 2: Original price — look for del / s / price-old in scope ─
+            const oldPriceEl = scope.querySelector([
+                'del .money-amount__main',
+                's .money-amount__main',
+                '.price-old .money-amount__main',
+                '.price__item--old .money-amount__main',
+                '[class*="price-old"] .money-amount__main',
+                '[class*="crossed"] .money-amount__main',
+                '[class*="line-through"] .money-amount__main',
+                '.regular-price .money-amount__main',
+                'del',
+                's[class*="price"]',
+            ].join(','));
+
+            const oldText = oldPriceEl?.textContent?.trim() || null;
+            const origVal = parseMAD(oldText);
+            _debug.rawPrices.push({ role: 'original', text: oldText, parsed: origVal });
+
+            // ── STEP 3: Current (sale) price — explicit sale selectors ─────────
+            const curPriceEl = scope.querySelector([
+                '.price-current .money-amount__main',
+                '.price__item--current .money-amount__main',
+                '[class*="price-current"] .money-amount__main',
+                '[class*="price-sale"] .money-amount__main',
+                '[class*="sale-price"] .money-amount__main',
+            ].join(','));
+
+            const curText = curPriceEl?.textContent?.trim() || null;
+            let currVal = parseMAD(curText);
+            _debug.rawPrices.push({ role: 'current (targeted)', text: curText, parsed: currVal });
+
+            // ── STEP 4: Fallback — first .money-amount__main in priceBox NOT in del/s
+            if (!currVal && priceBox) {
+                for (const el of priceBox.querySelectorAll('.money-amount__main')) {
+                    if (!el.closest('del') && !el.closest('s')) {
+                        const t = el.textContent?.trim();
+                        const v = parseMAD(t);
+                        _debug.rawPrices.push({ role: 'current (fallback)', text: t, parsed: v });
+                        if (v) { currVal = v; break; }
+                    }
                 }
             }
 
-            return { name, currentPrice, originalPrice, discount, image };
+            // ── STEP 5: Last resort — data-price / itemprop attribute ─────────
+            if (!currVal) {
+                const dataEl = document.querySelector('[data-price], [itemprop="price"]');
+                if (dataEl) {
+                    const t = dataEl.getAttribute('data-price')
+                        || dataEl.getAttribute('content')
+                        || dataEl.textContent?.trim();
+                    currVal = parseMAD(t);
+                    _debug.rawPrices.push({ role: 'current (data-attr)', text: t, parsed: currVal });
+                }
+            }
+
+            // ── STEP 6: Assign + validate ──────────────────────────────────────
+            if (currVal) currentPrice = currVal;
+            if (origVal) originalPrice = origVal;
+
+            if (origVal && currVal) {
+                if (origVal > currVal) {
+                    discount = Math.round((1 - currVal / origVal) * 100);
+                } else {
+                    // Prices equal or inverted — no real discount
+                    originalPrice = null;
+                    discount = null;
+                }
+            }
+
+            // Cross-check with on-page discount badge
+            if (!discount) {
+                const badgeEl = scope.querySelector(
+                    '[class*="discount"], .price-current__discount, [class*="promo-badge"]'
+                );
+                if (badgeEl) {
+                    const m = badgeEl.textContent?.match(/-?(\d+)%/);
+                    if (m) discount = parseInt(m[1]);
+                }
+            }
+
+            return { name, currentPrice, originalPrice, discount, image, _debug };
         });
 
         return details;
-        
+
     } catch (error) {
-        console.log(`   ⚠️ Error: ${error.message}`);
+        console.log(`   ⚠️ Error on ${productUrl}: ${error.message}`);
         return null;
     }
 }

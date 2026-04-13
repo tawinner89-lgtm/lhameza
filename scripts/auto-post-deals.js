@@ -190,10 +190,26 @@ async function main() {
 
     await sendTelegram(`🛒 <b>L'HAMZA — Nouvelles promos</b>\n📅 ${now}\n(${toPost.length} deals avec -${MIN_DISCOUNT}%+)`);
 
+    // Patterns that indicate a generic logo / homepage image rather than a product photo
+    const BAD_IMAGE_PATTERNS = [
+        /aliexpress\.com\/(favicon|logo|header|homepage)/i,
+        /ae01\.alicdn\.com\/kf\/.*logo/i,
+        /gloimg\.alicdn\.com\/.*logo/i,
+        /\/default[-_]?image/i,
+        /placeholder/i,
+        /no[-_]?image/i,
+        /noimage/i,
+    ];
+
+    function isRealProductImage(url) {
+        if (!url || typeof url !== 'string' || !url.startsWith('http')) return false;
+        return !BAD_IMAGE_PATTERNS.some(re => re.test(url));
+    }
+
     for (const deal of toPost) {
         const text = formatDeal(deal);
         const imageUrl = deal.image;
-        const result = imageUrl
+        const result = isRealProductImage(imageUrl)
             ? await sendTelegramPhoto(imageUrl, text)
             : await sendTelegram(text);
         if (result && result.ok) {

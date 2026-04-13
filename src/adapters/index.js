@@ -31,6 +31,9 @@ const CosmetiqueAdapter = require('./CosmetiqueAdapter');
 // International Marketplaces
 const AliExpressAdapter = require('./AliExpressAdapter');
 
+// Home / Furniture
+const IKEAAdapter = require('./IKEAAdapter');
+
 // Fashion Brands (Scroll-based scraping)
 const ZaraAdapter = require('./ZaraAdapter');
 const AdidasAdapter = require('./AdidasAdapter');
@@ -255,6 +258,15 @@ const ADAPTERS_CONFIG = {
         country: 'MA',
         emoji: '🛒',
         priority: 2
+    },
+
+    // IKEA Morocco — home & furniture deals
+    ikea: {
+        Adapter: IKEAAdapter,
+        category: 'home',
+        country: 'MA',
+        emoji: '🛋️',
+        priority: 1
     }
 };
 
@@ -334,6 +346,9 @@ module.exports = {
     
     // International Marketplaces
     AliExpressAdapter,
+
+    // Home / Furniture
+    IKEAAdapter,
 
     // Fashion Brands
     ZaraAdapter,

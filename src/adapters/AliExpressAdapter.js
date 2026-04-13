@@ -10,7 +10,8 @@ const fs = require('fs');
 const BaseAdapter = require('./BaseAdapter');
 const logger = require('../utils/logger');
 
-const USD_TO_MAD = 10.0;
+// USD → MAD rate (update via env var USD_TO_MAD_RATE if needed)
+const USD_TO_MAD = parseFloat(process.env.USD_TO_MAD_RATE) || 10.3;
 
 // Admitad OAuth token cache (in-memory, per process lifetime)
 let _admitadToken = null;
@@ -33,6 +34,7 @@ class AliExpressAdapter extends BaseAdapter {
         this.admitadClientId = process.env.ADMITAD_CLIENT_ID || '';
         this.admitadClientSecret = process.env.ADMITAD_CLIENT_SECRET || '';
         this.admitadCampaignId = process.env.ADMITAD_ALIEXPRESS_CAMPAIGN_ID || '';
+        this.admitadWebsiteId = process.env.ADMITAD_WEBSITE_ID || '';
 
         // AliExpress Affiliate API (direct)
         this.aliAppKey = process.env.ALIEXPRESS_APP_KEY || '';
@@ -59,7 +61,7 @@ class AliExpressAdapter extends BaseAdapter {
                 grant_type: 'client_credentials',
                 client_id: this.admitadClientId,
                 client_secret: this.admitadClientSecret,
-                scope: 'advcampaigns products',
+                scope: 'advcampaigns_for_website coupons_for_website',
             }),
             { timeout: this.timeout }
         );
@@ -73,8 +75,8 @@ class AliExpressAdapter extends BaseAdapter {
     // ─── Strategy 1: Admitad Product Feed API ────────────────────────────────
 
     async _fetchViaAdmitad() {
-        if (!this.admitadClientId || !this.admitadClientSecret || !this.admitadCampaignId) {
-            throw new Error('Admitad credentials not configured');
+        if (!this.admitadClientId || !this.admitadClientSecret || !this.admitadCampaignId || !this.admitadWebsiteId) {
+            throw new Error('Admitad credentials not configured (need CLIENT_ID, CLIENT_SECRET, CAMPAIGN_ID, WEBSITE_ID)');
         }
 
         const token = await this._getAdmitadToken();
@@ -85,7 +87,7 @@ class AliExpressAdapter extends BaseAdapter {
                 const resp = await axios.get(
                     `https://api.admitad.com/advcampaigns/${this.admitadCampaignId}/products/`,
                     {
-                        params: { query: keyword, limit: 20, offset: 0 },
+                        params: { query: keyword, limit: 20, offset: 0, website: this.admitadWebsiteId },
                         headers: { Authorization: `Bearer ${token}` },
                         timeout: this.timeout,
                     }
@@ -97,12 +99,17 @@ class AliExpressAdapter extends BaseAdapter {
                     const origUSD = parseFloat(p.old_price || p.original_price || 0);
                     if (!priceUSD) continue;
 
+                    // Extract discount percentage from API field if available
+                    const discountRaw = p.discount || p.discount_value || null;
+                    const discountPct = discountRaw ? parseInt(discountRaw) : null;
+
                     items.push(this.formatDeal({
                         name: p.name || p.title,
                         currentPrice: String(Math.round(priceUSD * USD_TO_MAD)),
                         originalPrice: origUSD > priceUSD
                             ? String(Math.round(origUSD * USD_TO_MAD))
                             : '',
+                        discount: discountPct,
                         image: p.picture || p.image || p.picture_url || '',
                         link: p.goto_link || p.url || p.product_url || '',
                         brand: 'AliExpress',
@@ -119,7 +126,73 @@ class AliExpressAdapter extends BaseAdapter {
         return items;
     }
 
-    // ─── Strategy 2: AliExpress Affiliate API ────────────────────────────────
+    // ─── Strategy 2: Admitad Coupons API (AliExpress deals/promo codes) ──────
+
+    async _fetchViaAdmitadCoupons() {
+        if (!this.admitadClientId || !this.admitadClientSecret || !this.admitadWebsiteId) {
+            throw new Error('Admitad credentials or website ID not configured');
+        }
+
+        const token = await this._getAdmitadToken();
+        const resp = await axios.get(
+            `https://api.admitad.com/coupons/website/${this.admitadWebsiteId}/`,
+            {
+                params: { limit: 50, offset: 0 },
+                headers: { Authorization: `Bearer ${token}` },
+                timeout: this.timeout,
+            }
+        );
+
+        const results = resp.data?.results || [];
+        // Filter to AliExpress coupons only — API uses `campaign` field
+        const aliCoupons = results.filter(c => {
+            const name = (c.campaign?.name || c.advcampaign?.name || '').toLowerCase();
+            const url = (c.campaign?.site_url || c.advcampaign?.site_url || '').toLowerCase();
+            return name.includes('aliexpress') || url.includes('aliexpress');
+        });
+
+        const items = aliCoupons
+            .filter(c => c.goto_link || c.frameset_link)
+            .map(c => {
+                const title = c.name || c.short_name || c.description || 'AliExpress Deal';
+                // `discount` is a string like "10%" or "60 R$" — extract numeric part
+                const discountStr = String(c.discount || '');
+                const discountNum = parseInt(discountStr) || null;
+                const link = c.goto_link || c.frameset_link;
+                const isActive = !c.date_end || new Date(c.date_end) > new Date();
+
+                if (!isActive) return null;
+
+                // Build a plain object — coupons have no price so bypass formatDeal's price check
+                return {
+                    externalId: `admitad-coupon-${c.id}`,
+                    brand: 'AliExpress',
+                    brandEmoji: this.emoji,
+                    name: title.slice(0, 120),
+                    title: title.slice(0, 120),
+                    price: null,
+                    originalPrice: null,
+                    discount: discountNum,
+                    discountFormatted: discountNum ? `-${discountNum}%` : null,
+                    currency: 'MAD',
+                    image: c.image || c.logo || c.banner || '',
+                    link,
+                    url: link,
+                    source: 'aliexpress',
+                    category: 'tech',
+                    condition: 'new',
+                    inStock: true,
+                    location: 'Morocco',
+                    scrapedAt: new Date().toISOString(),
+                };
+            })
+            .filter(Boolean);
+
+        if (!items.length) throw new Error('Admitad coupons returned 0 AliExpress items');
+        return items;
+    }
+
+    // ─── Strategy 3: AliExpress Affiliate API ────────────────────────────────
 
     async _fetchViaAliExpressAffiliateAPI() {
         if (!this.aliAppKey || !this.aliAppSecret) {
@@ -231,7 +304,17 @@ class AliExpressAdapter extends BaseAdapter {
             logger.warn(`${this.name}: Admitad failed — ${err.message}`);
         }
 
-        // Strategy 2: AliExpress Affiliate API
+        // Strategy 2: Admitad Coupons API
+        try {
+            logger.info(`${this.name}: Trying Admitad Coupons API`);
+            const items = await this._fetchViaAdmitadCoupons();
+            logger.info(`${this.name}: Admitad coupons returned ${items.length} items`);
+            return { success: true, store: this.name, source: 'admitad_coupons', itemCount: items.length, items };
+        } catch (err) {
+            logger.warn(`${this.name}: Admitad Coupons API failed — ${err.message}`);
+        }
+
+        // Strategy 3: AliExpress Affiliate API
         try {
             logger.info(`${this.name}: Trying AliExpress Affiliate API`);
             const items = await this._fetchViaAliExpressAffiliateAPI();
@@ -241,7 +324,7 @@ class AliExpressAdapter extends BaseAdapter {
             logger.warn(`${this.name}: AliExpress Affiliate API failed — ${err.message}`);
         }
 
-        // Strategy 3: Curated JSON fallback
+        // Strategy 4: Curated JSON fallback
         logger.info(`${this.name}: Falling back to curated feed`);
         const items = this._fetchFromCuratedFeed();
         return { success: true, store: this.name, source: 'curated', itemCount: items.length, items };

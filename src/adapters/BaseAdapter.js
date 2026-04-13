@@ -210,8 +210,29 @@ class BaseAdapter {
 
     parsePrice(priceStr) {
         if (!priceStr) return null;
-        const cleaned = priceStr.replace(/[^\d.,]/g, '').replace(',', '.');
-        const price = parseFloat(cleaned);
+        let s = String(priceStr).trim();
+
+        // Remove currency text and non-numeric characters except digits, spaces, dots, commas
+        s = s.replace(/[^\d\s.,]/g, '').trim();
+        if (!s) return null;
+
+        const lastComma = s.lastIndexOf(',');
+        const lastPeriod = s.lastIndexOf('.');
+
+        if (lastComma > lastPeriod) {
+            // Comma is the decimal separator (French/Moroccan format)
+            // e.g. "1.199,00" or "1 199,00" → 1199
+            s = s.replace(/[\s.]/g, '').replace(',', '.');
+        } else if (lastPeriod > lastComma) {
+            // Period is the decimal separator (English format)
+            // e.g. "1,199.00" or "699.00" → 699
+            s = s.replace(/[\s,]/g, '');
+        } else {
+            // No decimal separator — plain integer
+            s = s.replace(/[\s.,]/g, '');
+        }
+
+        const price = parseFloat(s);
         return isNaN(price) ? null : price;
     }
 
