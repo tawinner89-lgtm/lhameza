@@ -46,19 +46,36 @@ export interface Deal {
   created_at: string;
 }
 
+// Format a MAD price as a clean integer string — e.g. 699 → "699 MAD"
+function formatMAD(value: number | null | undefined, currency: string): string {
+  if (!value || value <= 0) return `— ${currency}`;
+  return `${Math.round(value)} ${currency}`;
+}
+
 // Format deal for frontend
 export function formatDeal(deal: Deal) {
   const currency = deal.currency || 'MAD';
+
+  // Recalculate discount from prices when the DB value is missing or 0
+  let discount = deal.discount && deal.discount > 0 ? deal.discount : null;
+  if (!discount && deal.price > 0 && deal.original_price && deal.original_price > deal.price) {
+    discount = Math.round((1 - deal.price / deal.original_price) * 100);
+  }
+
+  // Only keep original_price when it makes mathematical sense
+  const originalPrice =
+    deal.original_price && deal.original_price > deal.price ? deal.original_price : null;
+
   return {
     id: deal.id,
     title: deal.title,
     brand: deal.brand,
     price: deal.price,
-    priceFormatted: `${deal.price?.toFixed(2)} ${currency}`,
-    originalPrice: deal.original_price,
-    originalPriceFormatted: deal.original_price ? `${deal.original_price.toFixed(2)} ${currency}` : null,
-    discount: deal.discount,
-    discountLabel: deal.discount ? `-${deal.discount}%` : null,
+    priceFormatted: formatMAD(deal.price, currency),
+    originalPrice,
+    originalPriceFormatted: originalPrice ? formatMAD(originalPrice, currency) : null,
+    discount,
+    discountLabel: discount ? `-${discount}%` : null,
     currency,
     category: deal.category,
     source: deal.source,

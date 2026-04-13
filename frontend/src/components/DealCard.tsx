@@ -64,30 +64,22 @@ export default function DealCard({ deal }: DealCardProps) {
   const imageUrl = useMemo(() => getImageUrl(deal.image, deal.source), [deal.image, deal.source]);
   const showPlaceholder = !imageUrl || imageError;
 
-  // Price validation - hide if suspicious
+  // Price validation - hide only clearly invalid data
   const isPriceValid = useMemo(() => {
-    if (!deal.originalPrice || !deal.discount) return true;
-    
-    // Check if discount makes sense
-    const calculatedDiscount = Math.round(((deal.originalPrice - deal.price) / deal.originalPrice) * 100);
-    const discountDiff = Math.abs(calculatedDiscount - deal.discount);
-    
-    // If discount is off by more than 5%, it's suspicious
-    if (discountDiff > 5) return false;
-    
-    // If original price is less than current price, invalid
-    if (deal.originalPrice < deal.price) return false;
-    
-    // If discount is too extreme (>95%), suspicious
-    if (deal.discount > 95) return false;
-    
+    if (!deal.originalPrice) return true;
+    if (deal.originalPrice <= deal.price) return false;
+    if (deal.discount && deal.discount > 95) return false;
     return true;
   }, [deal.price, deal.originalPrice, deal.discount]);
 
   const displayDiscount = useMemo(() => {
-    if (!deal.discount || !isPriceValid) return null;
-    return deal.discount;
-  }, [deal.discount, isPriceValid]);
+    if (!isPriceValid) return null;
+    if (deal.discount && deal.discount >= 5) return deal.discount;
+    if (deal.originalPrice && deal.price && deal.originalPrice > deal.price) {
+      return Math.round((1 - deal.price / deal.originalPrice) * 100);
+    }
+    return null;
+  }, [deal.discount, deal.price, deal.originalPrice, isPriceValid]);
 
   useEffect(() => {
     const onSavedChanged = () => setSaved(isSaved(deal.id));
